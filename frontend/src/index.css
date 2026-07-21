@@ -1,0 +1,12 @@
+/* Minimal styles reset to avoid layout conflicts */
+body, html, #root {
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+  background-color: #0f172a;
+}
+#root {
+  width: 100% !important;
+  max-width: 100% !important;
+  border: none !important;
+}

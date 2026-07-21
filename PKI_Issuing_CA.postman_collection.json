@@ -1,0 +1,489 @@
+{
+	"info": {
+		"_postman_id": "f5b84c8a-78b9-4da4-8e5f-bf9b0577be2e",
+		"name": "PKI Issuing CA API Collection",
+		"description": "Collection to test the Phase 1 & Phase 2 API endpoints for the PKI Issuing CA System.",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Auth",
+			"item": [
+				{
+					"name": "Login - CA Admin",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.token) {",
+									"    pm.globals.set(\"jwtToken\", jsonData.token);",
+									"    console.log(\"Saved jwtToken:\", jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"admin\",\n    \"password\": \"adminpassword\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Login - RA Operator",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.token) {",
+									"    pm.globals.set(\"jwtToken\", jsonData.token);",
+									"    console.log(\"Saved jwtToken:\", jsonData.token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"username\": \"operator\",\n    \"password\": \"operatorpassword\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/auth/login",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"auth",
+								"login"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Key Management",
+			"item": [
+				{
+					"name": "Generate RSA Key Pair",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"algorithm\": \"RSA\",\n    \"keySize\": 2048\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/keys/generate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"keys",
+								"generate"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Generate EC Key Pair",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"algorithm\": \"EC\",\n    \"keySize\": 256\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/keys/generate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"keys",
+								"generate"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Key Pairs",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/keys",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"keys"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "CA Management",
+			"item": [
+				{
+					"name": "Initialize Root CA",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.serialNumber) {",
+									"    pm.globals.set(\"rootCaSerial\", jsonData.serialNumber);",
+									"    console.log(\"Saved rootCaSerial:\", jsonData.serialNumber);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"subjectDN\": \"CN=Root CA,O=INSA,C=FR\",\n    \"keyType\": \"RSA\",\n    \"keySizeOrCurve\": 2048,\n    \"profileName\": \"RootCA\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/certificates/cas/root",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"certificates",
+								"cas",
+								"root"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Initialize Intermediate CA",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.serialNumber) {",
+									"    pm.globals.set(\"intermediateCaSerial\", jsonData.serialNumber);",
+									"    console.log(\"Saved intermediateCaSerial:\", jsonData.serialNumber);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"subjectDN\": \"CN=Sub CA 1,O=INSA,C=FR\",\n    \"parentSerialNumber\": \"{{rootCaSerial}}\",\n    \"keyType\": \"EC\",\n    \"keySizeOrCurve\": 256,\n    \"profileName\": \"SubCA\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/certificates/cas/intermediate",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"certificates",
+								"cas",
+								"intermediate"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		},
+		{
+			"name": "Certificate Signing & Lifecycle",
+			"item": [
+				{
+					"name": "Sign CSR (End Entity)",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"var jsonData = pm.response.json();",
+									"if (jsonData.serialNumber) {",
+									"    pm.globals.set(\"eeCertSerial\", jsonData.serialNumber);",
+									"    console.log(\"Saved eeCertSerial:\", jsonData.serialNumber);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"csrPem\": \"-----BEGIN CERTIFICATE REQUEST-----\\nMIIBnTCCAQYCAQAwJjEkMCIGA1UEAwwbQ2xpZW50IEFwcGxpY2F0aW9uLE89SU5T\\nQSxDPUZSMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyYt7oH7T2GEx\\nuZ4Xq4m+Fh4y5VqE2VnS4gJ7vC0N/W6k5p8Y5z9Y9X0w4q5h6G4q5h6G4q5h6G4q\\n5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G\\n4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h\\n6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q\\n5wIDAQABoAAwDQYJKoZIhvcNAQELBQADggEBAKeB1z+K7j2GExuZ4Xq4m+Fh4y5V\\nqE2VnS4gJ7vC0N/W6k5p8Y5z9Y9X0w4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h\\n6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q\\n5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G\\n4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h6G4q5h\\n6G4=\\n-----END CERTIFICATE REQUEST-----\",\n    \"caSerialNumber\": \"{{intermediateCaSerial}}\",\n    \"profileName\": \"EndEntity\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/certificates/sign",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"certificates",
+								"sign"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Renew Certificate",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/certificates/{{eeCertSerial}}/renew",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"certificates",
+								"{{eeCertSerial}}",
+								"renew"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Suspend Certificate",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/certificates/{{eeCertSerial}}/suspend",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"certificates",
+								"{{eeCertSerial}}",
+								"suspend"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Unsuspend Certificate",
+					"request": {
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/certificates/{{eeCertSerial}}/unsuspend",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"certificates",
+								"{{eeCertSerial}}",
+								"unsuspend"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Revoke Certificate",
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n    \"reason\": \"KEY_COMPROMISE\"\n}"
+						},
+						"url": {
+							"raw": "{{baseUrl}}/certificates/{{eeCertSerial}}/revoke",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"certificates",
+								"{{eeCertSerial}}",
+								"revoke"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "List Certificates",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/certificates",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"certificates"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Certificate By Serial Number",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/certificates/{{eeCertSerial}}",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"certificates",
+								"{{eeCertSerial}}"
+							]
+						}
+					},
+					"response": []
+				},
+				{
+					"name": "Get Certificate PEM Content",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{baseUrl}}/certificates/{{eeCertSerial}}/pem",
+							"host": [
+								"{{baseUrl}}"
+							],
+							"path": [
+								"certificates",
+								"{{eeCertSerial}}",
+								"pem"
+							]
+						}
+					},
+					"response": []
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{jwtToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "http://localhost:8080/api/v1",
+			"type": "string"
+		}
+	]
+}

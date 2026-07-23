@@ -65,7 +65,10 @@ public class CrlGenerationServiceImpl implements CrlGenerationService {
     @Override
     @Transactional
     public CrlEntity generateCrl(Long caCertificateId) throws Exception {
-        CertificateEntity caCertEntity = certificateRepository.findById(caCertificateId)
+        // Pessimistic write lock: held for the rest of this transaction, so a second concurrent
+        // generateCrl() call for the same CA blocks here until this transaction commits, instead
+        // of both transactions reading the same nextCrlNumber and racing to insert it.
+        CertificateEntity caCertEntity = certificateRepository.findByIdForUpdate(caCertificateId)
                 .orElseThrow(() -> new IllegalArgumentException("CA certificate not found with ID: " + caCertificateId));
 
         if (!"ISSUED".equalsIgnoreCase(caCertEntity.getStatus())) {
@@ -76,9 +79,11 @@ public class CrlGenerationServiceImpl implements CrlGenerationService {
             throw new IllegalArgumentException("Certificate ID " + caCertificateId + " is an End-Entity certificate, not a CA.");
         }
 
-        // 1. Atomic CRL number allocation
+        // 1. CRL number allocation — safe now because the row lock above prevents any other
+        // transaction from reading nextCrlNumber until this one commits or rolls back.
         Long currentCrlNumber = caCertEntity.getNextCrlNumber();
-        certificateRepository.incrementNextCrlNumber(caCertificateId);
+        caCertEntity.setNextCrlNumber(currentCrlNumber + 1);
+        certificateRepository.save(caCertEntity);
 
         // 2. Load CA keys
         KeyPairEntity caKeyPair = keyPairRepository.findAll().stream()

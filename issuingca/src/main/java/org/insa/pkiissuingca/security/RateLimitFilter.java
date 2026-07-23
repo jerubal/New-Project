@@ -70,12 +70,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     /**
      * Resolves the real client IP, honouring X-Forwarded-For when behind a reverse proxy.
-     * Only trusts the first value in the chain (the original client).
+     * Uses the last IP address appended by upstream proxies to prevent client header spoofing.
      */
     private String resolveClientIp(HttpServletRequest request) {
         String xff = request.getHeader("X-Forwarded-For");
         if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
+            String[] parts = xff.split(",");
+            return parts[parts.length - 1].trim();
         }
         return request.getRemoteAddr();
     }

@@ -60,6 +60,14 @@ public class KeystoreController {
             KeyPairEntity keyPairEntity = keyPairRepository.findById(request.getKeyId())
                     .orElseThrow(() -> new IllegalArgumentException("KeyPair not found with ID: " + request.getKeyId()));
 
+            if (!isUserAdminOrOperator()) {
+                if (keyPairEntity.getUser() == null || keyPairEntity.getUser().getUsername() == null ||
+                        !keyPairEntity.getUser().getUsername().equals(username)) {
+                    auditService.log(username, "EXPORT_PFX_PKCS12", "Access denied for keyId " + request.getKeyId(), "FAILURE", "127.0.0.1");
+                    return ResponseEntity.status(403).body("Access denied: You do not own this key pair.");
+                }
+            }
+
             PrivateKey privateKey = serializationService.parsePrivateKeyFromPem(keyPairEntity.getPrivateKeyPEM());
             X509Certificate targetCert = serializationService.parseCertificateFromPem(certEntity.getPemContent());
 
@@ -127,16 +135,26 @@ public class KeystoreController {
         }
     }
 
+    private boolean isUserAdminOrOperator() {
+        var auth = SecurityContextHolder.getContext().getAuthentication();
+        if (auth == null) return false;
+        return auth.getAuthorities().stream().anyMatch(a ->
+                a.getAuthority().equals("ROLE_CA_ADMIN") || a.getAuthority().equals("CA_ADMIN") ||
+                a.getAuthority().equals("ROLE_RA_OPERATOR") || a.getAuthority().equals("RA_OPERATOR")
+        );
+    }
+
     private String getCurrentUsername() {
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
-            return "admin";
+            return "SYSTEM";
         }
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal == null) {
-            return "admin";
+            return "SYSTEM";
         }
         if (principal instanceof String) {
-            return (String) principal;
+            String str = (String) principal;
+            return "anonymousUser".equalsIgnoreCase(str) ? "SYSTEM" : str;
         }
         if (principal instanceof org.springframework.security.core.userdetails.UserDetails) {
             return ((org.springframework.security.core.userdetails.UserDetails) principal).getUsername();

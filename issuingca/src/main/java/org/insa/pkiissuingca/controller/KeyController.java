@@ -149,14 +149,15 @@ public class KeyController {
 
     private String getCurrentUsername() {
         if (SecurityContextHolder.getContext().getAuthentication() == null) {
-            return "admin";
+            return "SYSTEM";
         }
         Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
         if (principal == null) {
-            return "admin";
+            return "SYSTEM";
         }
         if (principal instanceof String) {
-            return (String) principal;
+            String str = (String) principal;
+            return "anonymousUser".equalsIgnoreCase(str) ? "SYSTEM" : str;
         }
         if (principal instanceof org.springframework.security.core.userdetails.UserDetails) {
             return ((org.springframework.security.core.userdetails.UserDetails) principal).getUsername();

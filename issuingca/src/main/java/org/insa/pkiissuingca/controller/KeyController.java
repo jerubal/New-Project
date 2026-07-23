@@ -9,6 +9,8 @@ import org.insa.pkiissuingca.repository.UserRepository;
 import org.insa.pkiissuingca.service.AuditService;
 import org.insa.pkiissuingca.service.CryptoService;
 import org.insa.pkiissuingca.service.SerializationService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -18,9 +20,18 @@ import java.security.KeyPair;
 import java.time.Instant;
 import java.util.List;
 
+import org.springframework.security.access.prepost.PreAuthorize;
+
+import jakarta.validation.Valid;
+
+import org.springframework.context.annotation.Profile;
+
 @RestController
 @RequestMapping("/api/v1/keys")
+@Profile("!ocsp")
 public class KeyController {
+
+    private static final Logger log = LoggerFactory.getLogger(KeyController.class);
 
     @Autowired
     private CryptoService cryptoService;
@@ -38,7 +49,8 @@ public class KeyController {
     private AuditService auditService;
 
     @PostMapping("/generate")
-    public ResponseEntity<?> generateKeys(@RequestBody KeyGenerateRequest request) {
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
+    public ResponseEntity<?> generateKeys(@Valid @RequestBody KeyGenerateRequest request) {
         String username = getCurrentUsername();
         User currentUser = userRepository.findByUsername(username).orElse(null);
         if (currentUser == null) {
@@ -79,17 +91,20 @@ public class KeyController {
             return ResponseEntity.ok(saved);
 
         } catch (Exception e) {
-            auditService.log(username, "GENERATE_KEYPAIR", "Error: " + e.getMessage(), "FAILURE", "127.0.0.1");
-            return ResponseEntity.badRequest().body("Failed to generate key pair: " + e.getMessage());
+            auditService.log(username, "GENERATE_KEYPAIR", "Error generating key pair", "FAILURE", "127.0.0.1");
+            log.error("Failed to generate key pair for user {}: {}", username, e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Failed to generate key pair.");
         }
     }
 
     @GetMapping
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'AUDITOR', 'ROLE_CA_ADMIN', 'ROLE_AUDITOR')")
     public ResponseEntity<List<KeyPairEntity>> listKeys() {
         return ResponseEntity.ok(keyPairRepository.findAll());
     }
 
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'AUDITOR', 'END_ENTITY', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR', 'ROLE_AUDITOR', 'ROLE_END_ENTITY')")
     public ResponseEntity<?> getKey(@PathVariable Long id) {
         String username = getCurrentUsername();
         KeyPairEntity kp = keyPairRepository.findById(id).orElse(null);
@@ -109,7 +124,9 @@ public class KeyController {
     }
 
     @GetMapping("/generate-csr/{keyId}")
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
     public ResponseEntity<String> getCsrString(@PathVariable Long keyId) {
+
         try {
             // Retrieve existing key pair by ID to prevent duplicate generation
             KeyPairEntity kpEntity = keyPairRepository.findById(keyId)
@@ -125,7 +142,8 @@ public class KeyController {
             String csrPem = cryptoService.generateCsr(kp, "CN=TestEntity,O=INSA,C=FR");
             return ResponseEntity.ok(csrPem);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Error generating CSR: " + e.getMessage());
+            log.error("Error generating CSR for key {}: {}", keyId, e.getMessage(), e);
+            return ResponseEntity.internalServerError().body("Error generating CSR.");
         }
     }
 

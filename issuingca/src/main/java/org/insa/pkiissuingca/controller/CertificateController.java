@@ -7,6 +7,8 @@ import org.insa.pkiissuingca.dto.RootCaInitRequest;
 import org.insa.pkiissuingca.model.CertificateEntity;
 import org.insa.pkiissuingca.repository.CertificateRepository;
 import org.insa.pkiissuingca.service.CertificateLifecycleService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,9 +17,16 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+import jakarta.validation.Valid;
+
+import org.springframework.context.annotation.Profile;
+
 @RestController
 @RequestMapping("/api/v1/certificates")
+@Profile("!ocsp")
 public class CertificateController {
+
+    private static final Logger log = LoggerFactory.getLogger(CertificateController.class);
 
     @Autowired
     private CertificateLifecycleService lifecycleService;
@@ -26,8 +35,8 @@ public class CertificateController {
     private CertificateRepository certificateRepository;
 
     @PostMapping("/cas/root")
-//    @PreAuthorize("hasRole('ROLE_CA_ADMIN')")
-    public ResponseEntity<?> initRootCa(@RequestBody RootCaInitRequest request) {
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'ROLE_CA_ADMIN')")
+    public ResponseEntity<?> initRootCa(@Valid @RequestBody RootCaInitRequest request) {
         String username = getCurrentUsername();
         try {
             CertificateEntity rootCa = lifecycleService.initRootCa(
@@ -35,17 +44,19 @@ public class CertificateController {
                     request.getKeyType(),
                     request.getKeySizeOrCurve(),
                     request.getProfileName() != null ? request.getProfileName() : "RootCA",
+                    request.getPathLenConstraint(),
                     username
             );
             return ResponseEntity.ok(rootCa);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to initialize Root CA: " + e.getMessage());
+            log.error("Failed to initialize Root CA: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Failed to initialize Root CA.");
         }
     }
 
     @PostMapping("/cas/intermediate")
-//    @PreAuthorize("hasRole('ROLE_CA_ADMIN')")
-    public ResponseEntity<?> initIntermediateCa(@RequestBody IntermediateCaInitRequest request) {
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'ROLE_CA_ADMIN')")
+    public ResponseEntity<?> initIntermediateCa(@Valid @RequestBody IntermediateCaInitRequest request) {
         String username = getCurrentUsername();
         try {
             CertificateEntity intermediateCa = lifecycleService.initIntermediateCa(
@@ -54,17 +65,19 @@ public class CertificateController {
                     request.getKeyType(),
                     request.getKeySizeOrCurve(),
                     request.getProfileName() != null ? request.getProfileName() : "SubCA",
+                    request.getPathLenConstraint(),
                     username
             );
             return ResponseEntity.ok(intermediateCa);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to initialize Intermediate CA: " + e.getMessage());
+            log.error("Failed to initialize Intermediate CA: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Failed to initialize Intermediate CA.");
         }
     }
 
     @PostMapping("/sign")
-//    @PreAuthorize("hasAnyRole('ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
-    public ResponseEntity<?> signCsr(@RequestBody CsrSignRequest request) {
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
+    public ResponseEntity<?> signCsr(@Valid @RequestBody CsrSignRequest request) {
         String username = getCurrentUsername();
         try {
             CertificateEntity cert = lifecycleService.signCsr(
@@ -75,48 +88,52 @@ public class CertificateController {
             );
             return ResponseEntity.ok(cert);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to sign CSR: " + e.getMessage());
+            log.error("Failed to sign CSR: {}", e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Failed to sign CSR.");
         }
     }
 
     @PostMapping(value = {"/{serialNumber}/renew", "/{serialNumber}/renewed"})
-//    @PreAuthorize("hasAnyRole('ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
     public ResponseEntity<?> renewCertificate(@PathVariable String serialNumber) {
         String username = getCurrentUsername();
         try {
             CertificateEntity renewed = lifecycleService.renewCertificate(serialNumber, username);
             return ResponseEntity.ok(renewed);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to renew certificate: " + e.getMessage());
+            log.error("Failed to renew certificate {}: {}", serialNumber, e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Failed to renew certificate.");
         }
     }
 
     @PostMapping(value = {"/{serialNumber}/suspend", "/{serialNumber}/suspended"})
-//    @PreAuthorize("hasAnyRole('ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
     public ResponseEntity<?> suspendCertificate(@PathVariable String serialNumber) {
         String username = getCurrentUsername();
         try {
             CertificateEntity suspended = lifecycleService.suspendCertificate(serialNumber, username);
             return ResponseEntity.ok(suspended);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to suspend certificate: " + e.getMessage());
+            log.error("Failed to suspend certificate {}: {}", serialNumber, e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Failed to suspend certificate.");
         }
     }
 
     @PostMapping(value = {"/{serialNumber}/unsuspend", "/{serialNumber}/unsuspended"})
-//    @PreAuthorize("hasAnyRole('ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
     public ResponseEntity<?> unsuspendCertificate(@PathVariable String serialNumber) {
         String username = getCurrentUsername();
         try {
             CertificateEntity unsuspended = lifecycleService.unsuspendCertificate(serialNumber, username);
             return ResponseEntity.ok(unsuspended);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to unsuspend certificate: " + e.getMessage());
+            log.error("Failed to unsuspend certificate {}: {}", serialNumber, e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Failed to unsuspend certificate.");
         }
     }
 
     @PostMapping(value = {"/{serialNumber}/revoke", "/{serialNumber}/revoked"})
-//    @PreAuthorize("hasAnyRole('ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
     public ResponseEntity<?> revokeCertificate(@PathVariable String serialNumber, @RequestBody(required = false) RevokeRequest request) {
         String username = getCurrentUsername();
         String reason = (request != null) ? request.getReason() : "UNSPECIFIED";
@@ -124,18 +141,25 @@ public class CertificateController {
             CertificateEntity revoked = lifecycleService.revokeCertificate(serialNumber, reason, username);
             return ResponseEntity.ok(revoked);
         } catch (Exception e) {
-            return ResponseEntity.badRequest().body("Failed to revoke certificate: " + e.getMessage());
+            log.error("Failed to revoke certificate {}: {}", serialNumber, e.getMessage(), e);
+            return ResponseEntity.badRequest().body("Failed to revoke certificate.");
         }
     }
 
     @GetMapping
-//    @PreAuthorize("hasAnyRole('ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR', 'ROLE_AUDITOR')")
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'AUDITOR', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR', 'ROLE_AUDITOR')")
     public ResponseEntity<List<CertificateEntity>> listCertificates() {
         return ResponseEntity.ok(certificateRepository.findAll());
     }
 
+    @GetMapping("/tree")
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'AUDITOR', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR', 'ROLE_AUDITOR')")
+    public ResponseEntity<List<CertificateEntity>> getCertificateTree() {
+        return ResponseEntity.ok(certificateRepository.findByParentCaIsNull());
+    }
+
     @GetMapping("/{serialNumber}")
-//    @PreAuthorize("hasAnyRole('ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR', 'ROLE_AUDITOR', 'ROLE_END_ENTITY')")
+    @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'AUDITOR', 'END_ENTITY', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR', 'ROLE_AUDITOR', 'ROLE_END_ENTITY')")
     public ResponseEntity<?> getCertificate(@PathVariable String serialNumber) {
         CertificateEntity cert = certificateRepository.findBySerialNumber(serialNumber).orElse(null);
         if (cert == null) {
@@ -152,6 +176,7 @@ public class CertificateController {
         }
         return ResponseEntity.ok(cert.getPemContent());
     }
+
 
     private String getCurrentUsername() {
         if (SecurityContextHolder.getContext().getAuthentication() == null) {

@@ -54,13 +54,35 @@ public class CertificateLifecycleService {
     @Autowired
     private AuditService auditService;
 
+    @Autowired
+    private LdapPublisherService ldapPublisherService;
+
+    @Autowired
+    private org.springframework.context.ApplicationEventPublisher eventPublisher;
+
+    @org.springframework.beans.factory.annotation.Value("${pki.cdp.url:http://localhost:8080/api/v1/crl}")
+    private String cdpUrl;
+
+    @org.springframework.beans.factory.annotation.Value("${pki.aia.ocsp-url:http://localhost:8080/api/v1/ocsp}")
+    private String ocspUrl;
+
+    @org.springframework.beans.factory.annotation.Value("${pki.aia.ca-issuer-base-url:http://localhost:8080/api/v1/certificates/}")
+    private String caIssuerBaseUrl;
+
     /**
      * Instantiates a self-signed Root CA.
      */
     @Transactional
     public CertificateEntity initRootCa(String subjectDN, String keyType, int keySizeOrCurve, String profileName, String username) throws Exception {
+        return initRootCa(subjectDN, keyType, keySizeOrCurve, profileName, null, username);
+    }
+
+    @Transactional
+    public CertificateEntity initRootCa(String subjectDN, String keyType, int keySizeOrCurve, String profileName, Integer requestedPathLen, String username) throws Exception {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+
+        checkForDuplicateActiveSubject(subjectDN);
 
         // Generate Root CA KeyPair
         KeyPair keyPair;
@@ -103,8 +125,12 @@ public class CertificateLifecycleService {
         );
 
         // Extensions
-        // Basic Constraints
-        certBuilder.addExtension(Extension.basicConstraints, true, new BasicConstraints(true));
+        // Basic Constraints with dynamic pathLen
+        if (requestedPathLen != null) {
+            certBuilder.addExtension(Extension.basicConstraints, true, new BasicConstraints(requestedPathLen));
+        } else {
+            certBuilder.addExtension(Extension.basicConstraints, true, new BasicConstraints(true));
+        }
 
         // Key Usage
         int keyUsageFlags = KeyUsage.keyCertSign | KeyUsage.cRLSign | KeyUsage.digitalSignature;
@@ -113,6 +139,9 @@ public class CertificateLifecycleService {
         // Subject Key Identifier
         certBuilder.addExtension(Extension.subjectKeyIdentifier, false,
                 new SubjectKeyIdentifier(keyPair.getPublic().getEncoded()));
+
+        // Inject CDP and AIA Extensions
+        injectCdpAndAiaExtensions(certBuilder, serial.toString());
 
         String sigAlg = profile.getSignatureAlgorithm();
         if ("EC".equals(algorithm)) {
@@ -135,27 +164,59 @@ public class CertificateLifecycleService {
         certEntity.setPemContent(serializationService.convertToPem(cert));
         certEntity.setCertificateType("ROOT");
         certEntity.setProfileName(profileName);
+        certEntity.setParentCa(null); // Self-signed Root CA has no parent CA entity
 
         CertificateEntity saved = certificateRepository.save(certEntity);
+
+        ldapPublisherService.publishCertificate(saved);
 
         auditService.log(username, "INIT_ROOT_CA", "Initialized Root CA with DN: " + subjectDN + ", Serial: " + serial, "SUCCESS", "127.0.0.1");
 
         return saved;
     }
 
+
     /**
      * Provision an Intermediate CA signed by a Root CA or another parent CA.
      */
     @Transactional
     public CertificateEntity initIntermediateCa(String subjectDN, String parentSerialNumber, String keyType, int keySizeOrCurve, String profileName, String username) throws Exception {
+        return initIntermediateCa(subjectDN, parentSerialNumber, keyType, keySizeOrCurve, profileName, null, username);
+    }
+
+    @Transactional
+    public CertificateEntity initIntermediateCa(String subjectDN, String parentSerialNumber, String keyType, int keySizeOrCurve, String profileName, Integer requestedPathLen, String username) throws Exception {
         User user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + username));
+
+        checkForDuplicateActiveSubject(subjectDN);
 
         CertificateEntity parentCertEntity = certificateRepository.findBySerialNumber(parentSerialNumber)
                 .orElseThrow(() -> new IllegalArgumentException("Parent CA certificate not found for serial: " + parentSerialNumber));
 
         if (!"ISSUED".equals(parentCertEntity.getStatus())) {
             throw new IllegalStateException("Parent CA certificate is not active. Status: " + parentCertEntity.getStatus());
+        }
+
+        // Validate dynamic path-length limit against parent CA certificate
+        X509Certificate parentX509 = serializationService.parseCertificateFromPem(parentCertEntity.getPemContent());
+        int parentPathLen = parentX509.getBasicConstraints();
+        if (parentPathLen == -1) {
+            throw new IllegalStateException("Parent certificate is not a CA.");
+        }
+        if (parentPathLen == 0) {
+            throw new IllegalStateException("Parent CA path length constraint limit reached (pathLen=0). Cannot issue subordinate CA.");
+        }
+
+        Integer childPathLen;
+        if (parentPathLen != Integer.MAX_VALUE) {
+            int maxAllowedChildPathLen = parentPathLen - 1;
+            if (requestedPathLen != null && requestedPathLen > maxAllowedChildPathLen) {
+                throw new IllegalArgumentException("Requested pathLen (" + requestedPathLen + ") exceeds parent CA's remaining pathLen budget (" + maxAllowedChildPathLen + ").");
+            }
+            childPathLen = (requestedPathLen != null) ? requestedPathLen : maxAllowedChildPathLen;
+        } else {
+            childPathLen = requestedPathLen;
         }
 
         // Generate Intermediate CA KeyPair
@@ -207,8 +268,12 @@ public class CertificateLifecycleService {
         );
 
         // Extensions
-        // Basic Constraints
-        certBuilder.addExtension(Extension.basicConstraints, true, new BasicConstraints(0)); // pathLen=0
+        // Basic Constraints dynamically calculated
+        if (childPathLen != null) {
+            certBuilder.addExtension(Extension.basicConstraints, true, new BasicConstraints(childPathLen));
+        } else {
+            certBuilder.addExtension(Extension.basicConstraints, true, new BasicConstraints(true));
+        }
 
         // Key Usage
         int keyUsageFlags = KeyUsage.keyCertSign | KeyUsage.cRLSign | KeyUsage.digitalSignature;
@@ -219,9 +284,11 @@ public class CertificateLifecycleService {
                 new SubjectKeyIdentifier(keyPair.getPublic().getEncoded()));
 
         // Authority Key Identifier
-        X509Certificate parentX509 = serializationService.parseCertificateFromPem(parentCertEntity.getPemContent());
         certBuilder.addExtension(Extension.authorityKeyIdentifier, false,
                 new AuthorityKeyIdentifier(parentX509.getPublicKey().getEncoded()));
+
+        // Inject CDP & AIA Extensions
+        injectCdpAndAiaExtensions(certBuilder, parentCertEntity.getSerialNumber());
 
         String sigAlg = profile.getSignatureAlgorithm();
         if (parentKeyPair.getAlgorithm().equalsIgnoreCase("EC")) {
@@ -244,8 +311,11 @@ public class CertificateLifecycleService {
         certEntity.setPemContent(serializationService.convertToPem(cert));
         certEntity.setCertificateType("INTERMEDIATE");
         certEntity.setProfileName(profileName);
+        certEntity.setParentCa(parentCertEntity); // Link parent CA entity
 
         CertificateEntity saved = certificateRepository.save(certEntity);
+
+        ldapPublisherService.publishCertificate(saved);
 
         auditService.log(username, "INIT_INTERMEDIATE_CA", "Initialized Intermediate CA: " + subjectDN + " signed by: " + parentCertEntity.getSubjectDN(), "SUCCESS", "127.0.0.1");
 
@@ -265,6 +335,8 @@ public class CertificateLifecycleService {
         }
 
         CsrService.CsrDetails csrDetails = csrService.parseCsr(csrPem);
+
+        checkForDuplicateActiveSubject(csrDetails.getSubjectDN());
 
         // Fetch CA Key pair
         KeyPairEntity caKeyPair = keyPairRepository.findAll().stream()
@@ -334,7 +406,6 @@ public class CertificateLifecycleService {
         if (csrDetails.getSans() != null && !csrDetails.getSans().isEmpty()) {
             List<GeneralName> generalNamesList = new ArrayList<>();
             for (String san : csrDetails.getSans()) {
-                // gn format could be tag:value (e.g. 2:example.com or 7:192.168.1.1)
                 if (san.contains(":")) {
                     String[] parts = san.split(":", 2);
                     try {
@@ -359,6 +430,9 @@ public class CertificateLifecycleService {
         certBuilder.addExtension(Extension.authorityKeyIdentifier, false,
                 new AuthorityKeyIdentifier(caCertEntity.getPublicKeyPEM().getBytes()));
 
+        // Inject CDP & AIA Extensions
+        injectCdpAndAiaExtensions(certBuilder, caCertEntity.getSerialNumber());
+
         String sigAlg = profile.getSignatureAlgorithm();
         if (caKeyPair.getAlgorithm().equalsIgnoreCase("EC")) {
             sigAlg = "SHA256withECDSA";
@@ -380,8 +454,11 @@ public class CertificateLifecycleService {
         certEntity.setPemContent(serializationService.convertToPem(cert));
         certEntity.setCertificateType("END_ENTITY");
         certEntity.setProfileName(profileName);
+        certEntity.setParentCa(caCertEntity); // Link parent CA entity
 
         CertificateEntity saved = certificateRepository.save(certEntity);
+
+        ldapPublisherService.publishCertificate(saved);
 
         auditService.log(username, "SIGN_CSR", "Signed CSR for Subject: " + csrDetails.getSubjectDN() + ", Serial: " + serial, "SUCCESS", "127.0.0.1");
 
@@ -403,22 +480,30 @@ public class CertificateLifecycleService {
         CertificateProfileEntity profile = profileRepository.findByName(oldCert.getProfileName())
                 .orElseGet(() -> createDefaultProfile(oldCert.getProfileName(), false, 365, "SHA256withRSA"));
 
-        // FIX: Sanitize the PEM string to ensure it has correct headers and line breaks
+        // Sanitize the PEM string to ensure it has correct headers and line breaks
         String rawPem = oldCert.getPemContent();
         String sanitizedPem = sanitizePem(rawPem);
 
         X509Certificate oldX509 = serializationService.parseCertificateFromPem(sanitizedPem);
         PublicKey pubKey = oldX509.getPublicKey();
 
-        // Fetch Issuer CA
-        CertificateEntity caCertEntity = certificateRepository.findBySubjectDN(oldCert.getIssuerDN()).stream()
-                .filter(c -> "ROOT".equals(c.getCertificateType()) || "INTERMEDIATE".equals(c.getCertificateType()))
-                .filter(c -> "ISSUED".equals(c.getStatus()))
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Issuer CA certificate not found or not active."));
+        // Fetch Issuer CA via explicit parent relation or fallback query
+        CertificateEntity caCertEntity = oldCert.getParentCa();
+        if (caCertEntity == null) {
+            caCertEntity = certificateRepository.findBySubjectDN(oldCert.getIssuerDN()).stream()
+                    .filter(c -> "ROOT".equals(c.getCertificateType()) || "INTERMEDIATE".equals(c.getCertificateType()))
+                    .filter(c -> "ISSUED".equals(c.getStatus()))
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException("Issuer CA certificate not found or not active."));
+        }
 
+        if (!"ISSUED".equals(caCertEntity.getStatus())) {
+            throw new IllegalStateException("Issuer CA certificate is not active. Status: " + caCertEntity.getStatus());
+        }
+
+        final CertificateEntity targetCaCert = caCertEntity;
         KeyPairEntity caKeyPair = keyPairRepository.findAll().stream()
-                .filter(k -> normalizePem(k.getPublicKeyPEM()).equals(normalizePem(caCertEntity.getPublicKeyPEM())))
+                .filter(k -> normalizePem(k.getPublicKeyPEM()).equals(normalizePem(targetCaCert.getPublicKeyPEM())))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("CA Private Key not found."));
 
@@ -440,6 +525,9 @@ public class CertificateLifecycleService {
             certBuilder.addExtension(ext);
         }
 
+        // Inject CDP & AIA Extensions
+        injectCdpAndAiaExtensions(certBuilder, caCertEntity.getSerialNumber());
+
         String sigAlg = profile.getSignatureAlgorithm();
         if (caKeyPair.getAlgorithm().equalsIgnoreCase("EC")) {
             sigAlg = "SHA256withECDSA";
@@ -450,7 +538,7 @@ public class CertificateLifecycleService {
         ContentSigner signer = new JcaContentSignerBuilder(sigAlg).setProvider("BC").build(caPrivateKey);
         X509Certificate newX509 = new JcaX509CertificateConverter().setProvider("BC").getCertificate(certBuilder.build(signer));
 
-        // Revoke the old certificate as "superceded"
+        // Revoke the old certificate as "superseded"
         oldCert.setStatus("REVOKED");
         oldCert.setRevocationReason("SUPERSEDED");
         oldCert.setRevocationDate(Instant.now());
@@ -468,6 +556,7 @@ public class CertificateLifecycleService {
         newCert.setPemContent(serializationService.convertToPem(newX509));
         newCert.setCertificateType(oldCert.getCertificateType());
         newCert.setProfileName(oldCert.getProfileName());
+        newCert.setParentCa(caCertEntity); // Link parent CA entity
 
         CertificateEntity saved = certificateRepository.save(newCert);
 
@@ -475,6 +564,48 @@ public class CertificateLifecycleService {
 
         return saved;
     }
+
+    private void checkForDuplicateActiveSubject(String subjectDN) {
+        List<CertificateEntity> existingCerts = certificateRepository.findBySubjectDN(subjectDN);
+        boolean activeExists = existingCerts.stream()
+                .anyMatch(c -> "ISSUED".equalsIgnoreCase(c.getStatus()));
+        if (activeExists) {
+            throw new IllegalStateException("An active certificate with Subject DN '" + subjectDN + "' already exists.");
+        }
+    }
+
+    private void injectCdpAndAiaExtensions(X509v3CertificateBuilder certBuilder, String issuerSerial) throws Exception {
+        // Inject CDP (CRL Distribution Point)
+        if (cdpUrl != null && !cdpUrl.isBlank()) {
+            GeneralName cdpName = new GeneralName(GeneralName.uniformResourceIdentifier, cdpUrl);
+            GeneralNames cdpNames = new GeneralNames(cdpName);
+            DistributionPointName dpn = new DistributionPointName(0, cdpNames);
+            DistributionPoint[] distPoints = new DistributionPoint[] { new DistributionPoint(dpn, null, null) };
+            certBuilder.addExtension(Extension.cRLDistributionPoints, false, new CRLDistPoint(distPoints));
+        }
+
+        // Inject AIA (Authority Information Access)
+        List<AccessDescription> accessDescriptions = new ArrayList<>();
+        if (ocspUrl != null && !ocspUrl.isBlank()) {
+            accessDescriptions.add(new AccessDescription(
+                    AccessDescription.id_ad_ocsp,
+                    new GeneralName(GeneralName.uniformResourceIdentifier, ocspUrl)
+            ));
+        }
+        if (caIssuerBaseUrl != null && !caIssuerBaseUrl.isBlank() && issuerSerial != null) {
+            String caIssuerUrl = caIssuerBaseUrl + (caIssuerBaseUrl.endsWith("/") ? "" : "/") + issuerSerial + "/pem";
+            accessDescriptions.add(new AccessDescription(
+                    AccessDescription.id_ad_caIssuers,
+                    new GeneralName(GeneralName.uniformResourceIdentifier, caIssuerUrl)
+            ));
+        }
+        if (!accessDescriptions.isEmpty()) {
+            certBuilder.addExtension(Extension.authorityInfoAccess, false,
+                    new AuthorityInformationAccess(accessDescriptions.toArray(new AccessDescription[0])));
+        }
+
+    }
+
     private String forceValidPemFormat(String pem) {
         if (pem == null) return "";
 
@@ -542,6 +673,10 @@ public class CertificateLifecycleService {
         cert.setStatus("SUSPENDED");
         CertificateEntity saved = certificateRepository.save(cert);
 
+        if (saved.getParentCa() != null) {
+            eventPublisher.publishEvent(new CertificateRevokedEvent(saved.getSerialNumber(), saved.getParentCa().getId(), "SUSPENDED"));
+        }
+
         auditService.log(username, "SUSPEND_CERTIFICATE", "Suspended certificate with Serial: " + serialNumber, "SUCCESS", "127.0.0.1");
 
         return saved;
@@ -560,6 +695,10 @@ public class CertificateLifecycleService {
 
         cert.setStatus("ISSUED");
         CertificateEntity saved = certificateRepository.save(cert);
+
+        if (saved.getParentCa() != null) {
+            eventPublisher.publishEvent(new CertificateRevokedEvent(saved.getSerialNumber(), saved.getParentCa().getId(), "UNSUSPENDED"));
+        }
 
         auditService.log(username, "UNSUSPEND_CERTIFICATE", "Unsuspended certificate with Serial: " + serialNumber, "SUCCESS", "127.0.0.1");
 
@@ -582,6 +721,10 @@ public class CertificateLifecycleService {
         cert.setRevocationReason(reason != null ? reason : "UNSPECIFIED");
         cert.setRevocationDate(Instant.now());
         CertificateEntity saved = certificateRepository.save(cert);
+
+        if (saved.getParentCa() != null) {
+            eventPublisher.publishEvent(new CertificateRevokedEvent(saved.getSerialNumber(), saved.getParentCa().getId(), reason));
+        }
 
         auditService.log(username, "REVOKE_CERTIFICATE", "Revoked certificate with Serial: " + serialNumber + ", Reason: " + reason, "SUCCESS", "127.0.0.1");
 

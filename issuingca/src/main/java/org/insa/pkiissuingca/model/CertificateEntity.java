@@ -1,7 +1,11 @@
 package org.insa.pkiissuingca.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "certificates")
@@ -10,6 +14,16 @@ public class CertificateEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "parent_ca_id", foreignKey = @ForeignKey(name = "fk_cert_parent_ca"))
+    @JsonIgnoreProperties({"parentCa", "childCertificates"})
+    private CertificateEntity parentCa;
+
+    @OneToMany(mappedBy = "parentCa", cascade = CascadeType.ALL)
+    @JsonIgnore
+    private List<CertificateEntity> childCertificates = new ArrayList<>();
+
 
     @Column(name = "serial_number", unique = true, nullable = false)
     private String serialNumber;
@@ -153,5 +167,32 @@ public class CertificateEntity {
 
     public void setProfileName(String profileName) {
         this.profileName = profileName;
+    }
+
+    @Column(name = "next_crl_number", nullable = false)
+    private Long nextCrlNumber = 1L;
+
+    public Long getNextCrlNumber() {
+        return nextCrlNumber;
+    }
+
+    public void setNextCrlNumber(Long nextCrlNumber) {
+        this.nextCrlNumber = nextCrlNumber;
+    }
+
+    public CertificateEntity getParentCa() {
+        return parentCa;
+    }
+
+    public void setParentCa(CertificateEntity parentCa) {
+        this.parentCa = parentCa;
+    }
+
+    public List<CertificateEntity> getChildCertificates() {
+        return childCertificates;
+    }
+
+    public void setChildCertificates(List<CertificateEntity> childCertificates) {
+        this.childCertificates = childCertificates;
     }
 }

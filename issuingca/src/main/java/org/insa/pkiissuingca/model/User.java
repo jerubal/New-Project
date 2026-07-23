@@ -3,8 +3,6 @@ package org.insa.pkiissuingca.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import org.insa.pkiissuingca.model.KeyPairEntity;
-import org.insa.pkiissuingca.model.KeystoreEntity;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -48,10 +46,11 @@ public class User {
     private Set<KeyPairEntity> keyPairs;
 
     @Column(nullable = false)
-    private int failedLoginAttempts = 0; // Initialize here
+    private int failedLoginAttempts = 0;
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true)
     private Set<KeystoreEntity> keystores;
+
     @Column(nullable = false)
     private String uuid = java.util.UUID.randomUUID().toString();
 
@@ -63,4 +62,108 @@ public class User {
 
     @Column(nullable = false)
     private boolean requiresPasswordChange = false;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getPassword() {
+        return password;
+    }
+
+    public void setPassword(String password) {
+        this.password = password;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public boolean isEnabled() {
+        return enabled;
+    }
+
+    public void setEnabled(boolean enabled) {
+        this.enabled = enabled;
+    }
+
+    public Set<Role> getRoles() {
+        return roles;
+    }
+
+    public void setRoles(Set<Role> roles) {
+        this.roles = roles;
+    }
+
+    public Set<KeyPairEntity> getKeyPairs() {
+        return keyPairs;
+    }
+
+    public void setKeyPairs(Set<KeyPairEntity> keyPairs) {
+        this.keyPairs = keyPairs;
+    }
+
+    public int getFailedLoginAttempts() {
+        return failedLoginAttempts;
+    }
+
+    public void setFailedLoginAttempts(int failedLoginAttempts) {
+        this.failedLoginAttempts = failedLoginAttempts;
+    }
+
+    public Set<KeystoreEntity> getKeystores() {
+        return keystores;
+    }
+
+    public void setKeystores(Set<KeystoreEntity> keystores) {
+        this.keystores = keystores;
+    }
+
+    public String getUuid() {
+        return uuid;
+    }
+
+    public void setUuid(String uuid) {
+        this.uuid = uuid;
+    }
+
+    public boolean isSoftDeleted() {
+        return isSoftDeleted;
+    }
+
+    public void setSoftDeleted(boolean softDeleted) {
+        isSoftDeleted = softDeleted;
+    }
+
+    public boolean isMfaEnabled() {
+        return mfaEnabled;
+    }
+
+    public void setMfaEnabled(boolean mfaEnabled) {
+        this.mfaEnabled = mfaEnabled;
+    }
+
+    public boolean isRequiresPasswordChange() {
+        return requiresPasswordChange;
+    }
+
+    public void setRequiresPasswordChange(boolean requiresPasswordChange) {
+        this.requiresPasswordChange = requiresPasswordChange;
+    }
 }

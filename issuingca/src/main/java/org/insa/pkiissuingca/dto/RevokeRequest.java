@@ -1,8 +1,17 @@
 package org.insa.pkiissuingca.dto;
 
-import lombok.Data;
+import jakarta.validation.constraints.NotBlank;
 
-@Data
 public class RevokeRequest {
+
+    @NotBlank(message = "Revocation reason is required")
     private String reason;
+
+    public String getReason() {
+        return reason;
+    }
+
+    public void setReason(String reason) {
+        this.reason = reason;
+    }
 }

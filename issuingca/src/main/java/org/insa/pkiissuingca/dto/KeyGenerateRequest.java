@@ -1,9 +1,29 @@
 package org.insa.pkiissuingca.dto;
 
-import lombok.Data;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 
-@Data
 public class KeyGenerateRequest {
-    private String algorithm; // RSA, EC, Ed25519
-    private Integer keySize; // 2048, 3072, 4096 or curve index/size
+
+    @NotBlank(message = "Key algorithm is required")
+    @Pattern(regexp = "(?i)RSA|EC|ECDSA|Ed25519", message = "Algorithm must be one of RSA, EC, ECDSA, or Ed25519")
+    private String algorithm;
+
+    private Integer keySize; // 2048, 3072, 4096 or curve index/size (256, 384, 521)
+
+    public String getAlgorithm() {
+        return algorithm;
+    }
+
+    public void setAlgorithm(String algorithm) {
+        this.algorithm = algorithm;
+    }
+
+    public Integer getKeySize() {
+        return keySize;
+    }
+
+    public void setKeySize(Integer keySize) {
+        this.keySize = keySize;
+    }
 }

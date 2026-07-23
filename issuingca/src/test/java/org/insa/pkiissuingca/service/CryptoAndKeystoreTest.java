@@ -152,13 +152,31 @@ public class CryptoAndKeystoreTest {
         String csrPem = csrService.generateCsr(keyPair, subjectDN, Collections.singletonList("DNS:example.com"), "SHA256withRSA");
         assertTrue(csrPem.contains("CERTIFICATE REQUEST"));
 
-        // Parse CSR
+        // Parse & Validate CSR signature (Proof-of-Possession)
         CsrService.CsrDetails details = csrService.parseCsr(csrPem);
-        // DN format parsed by Bouncy Castle might differ in spacing/formatting, but string matches content
         assertTrue(details.getSubjectDN().contains("CN=Client Application"));
         assertTrue(details.getSubjectDN().contains("O=INSA"));
         assertArrayEquals(keyPair.getPublic().getEncoded(), details.getPublicKey().getEncoded());
         assertEquals(1, details.getSans().size());
         assertTrue(details.getSans().get(0).contains("example.com"));
     }
+
+    @Test
+    public void testCsrPolicyValidationWeakAlgorithm() throws Exception {
+        CsrService csrService = new CsrService();
+        ReflectionTestUtils.setField(csrService, "serializationService", serializationService);
+
+        KeyPair keyPair = cryptoService.generateRsaKeyPair(2048);
+        String subjectDN = "CN=WeakAlgTest,O=INSA,C=FR";
+
+        // Generate CSR with prohibited SHA1withRSA algorithm
+        String weakCsrPem = csrService.generateCsr(keyPair, subjectDN, null, "SHA1withRSA");
+
+        // Expect policy validation exception
+        IllegalArgumentException ex = assertThrows(IllegalArgumentException.class, () -> {
+            csrService.parseCsr(weakCsrPem);
+        });
+        assertTrue(ex.getMessage().contains("Disallowed CSR signature algorithm"));
+    }
 }
+

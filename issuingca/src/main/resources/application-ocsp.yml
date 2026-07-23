@@ -1,0 +1,26 @@
+# ============================================================
+# Spring Profile: ocsp
+# Activated in the dedicated OCSP responder container.
+# All credentials are inherited from the main application.yml.
+# Only the OCSP and CRL read paths are exposed; all write-path
+# controllers (certificate issuance, key generation, auth) are
+# disabled by class-level @Profile("!ocsp") annotations.
+# ============================================================
+
+spring:
+  jpa:
+    show-sql: false
+
+# Restrict actuator exposure to health check only on the OCSP node
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# OCSP-specific tuning
+pki:
+  ocsp:
+    signer-validity-days: ${PKI_OCSP_SIGNER_VALIDITY_DAYS:7}
+    response-ttl-seconds: ${PKI_OCSP_RESPONSE_TTL_SECONDS:300}
+    signer-check-interval-ms: ${PKI_OCSP_SIGNER_CHECK_MS:86400000}

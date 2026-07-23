@@ -39,13 +39,31 @@ public class SerializationService {
     /**
      * Parses an X.509 Certificate from a PEM string.
      */
+    /**
+     * Parses an X.509 Certificate from a PEM string, sanitizing the input
+     * to ignore extra data or trailing characters.
+     */
     public X509Certificate parseCertificateFromPem(String pemContent) throws Exception {
-        try (PEMParser parser = new PEMParser(new StringReader(pemContent))) {
+        // Use regex to find the first valid certificate block
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                "-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----",
+                java.util.regex.Pattern.DOTALL
+        );
+        java.util.regex.Matcher matcher = pattern.matcher(pemContent);
+
+        if (!matcher.find()) {
+            throw new IOException("No valid PEM-encoded certificate found in stream");
+        }
+
+        String cleanPem = matcher.group(0);
+
+        try (PEMParser parser = new PEMParser(new StringReader(cleanPem))) {
             Object obj = parser.readObject();
             if (obj instanceof X509CertificateHolder) {
-                return new JcaX509CertificateConverter().getCertificate((X509CertificateHolder) obj);
+                return new JcaX509CertificateConverter().setProvider("BC")
+                        .getCertificate((X509CertificateHolder) obj);
             }
-            throw new IOException("No valid certificate found in stream");
+            throw new IOException("No valid certificate found in the sanitized PEM block");
         }
     }
 

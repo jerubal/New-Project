@@ -28,28 +28,27 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         try {
             String jwt = getJwtFromRequest(request);
 
-            String username = "admin";
-            String role = "ROLE_CA_ADMIN";
-
             if (StringUtils.hasText(jwt) && jwtUtil.validateToken(jwt)) {
-                username = jwtUtil.getUsernameFromToken(jwt);
-                role = jwtUtil.getRoleFromToken(jwt); // e.g. ROLE_CA_ADMIN or CA_ADMIN
-            }
+                String username = jwtUtil.getUsernameFromToken(jwt);
+                String role = jwtUtil.getRoleFromToken(jwt);
 
-            if (!role.startsWith("ROLE_")) {
-                role = "ROLE_" + role;
-            }
+                if (role != null) {
+                    if (!role.startsWith("ROLE_")) {
+                        role = "ROLE_" + role;
+                    }
 
-            SimpleGrantedAuthority authority = new SimpleGrantedAuthority(role);
-            UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-                    username, null, Collections.singletonList(authority));
-            
-            authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+                    SimpleGrantedAuthority authority = new SimpleGrantedAuthority(role);
+                    UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
+                            username, null, Collections.singletonList(authority));
+
+                    authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+                    SecurityContextHolder.getContext().setAuthentication(authentication);
+                }
+            }
         } catch (Exception ex) {
-            // Log security failure (optional, can be integrated with AuditService if necessary)
             SecurityContextHolder.clearContext();
         }
+
 
         filterChain.doFilter(request, response);
     }

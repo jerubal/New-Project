@@ -1,0 +1,199 @@
+services:
+
+  # ============================================================
+  # Database: MariaDB
+  # ============================================================
+  mariadb:
+    image: mariadb:11.4
+    container_name: pki_mariadb
+    restart: unless-stopped
+    environment:
+      MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MARIADB_DATABASE: pki_db
+      MARIADB_USER: ${DB_USERNAME}
+      MARIADB_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - mariadb_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      retries: 6
+      start_period: 30s
+    networks:
+      - pki_net
+
+  # ============================================================
+  # Cache: Redis
+  # ============================================================
+  redis:
+    image: redis:7.4-alpine
+    container_name: pki_redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD} --save 60 1
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      retries: 5
+    networks:
+      - pki_net
+
+  # ============================================================
+  # Main API Instance 1
+  # ============================================================
+  app1:
+    build:
+      context: ./issuingca
+      dockerfile: Dockerfile
+    container_name: pki_app1
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mariadb://mariadb:3306/pki_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+      PKI_DB_ENCRYPTION_KEY: ${PKI_DB_ENCRYPTION_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      PKI_CDP_URL: ${PKI_CDP_URL:-https://localhost/api/v1/ca}
+      PKI_OCSP_URL: ${PKI_OCSP_URL:-https://localhost/api/v1/ocsp}
+      PKI_CA_ISSUER_URL: ${PKI_CA_ISSUER_URL:-https://localhost/api/v1/certificates/}
+      LDAP_ENABLED: ${LDAP_ENABLED:-false}
+      LDAP_URL: ${LDAP_URL:-ldap://localhost:389}
+      LDAP_BASE_DN: ${LDAP_BASE_DN:-dc=example,dc=org}
+      LDAP_BIND_DN: ${LDAP_BIND_DN:-}
+      LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
+    networks:
+      - pki_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      retries: 5
+      start_period: 40s
+
+  # ============================================================
+  # Main API Instance 2 (HA — load balanced by Nginx)
+  # ============================================================
+  app2:
+    build:
+      context: ./issuingca
+      dockerfile: Dockerfile
+    container_name: pki_app2
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:mariadb://mariadb:3306/pki_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRATION_MS: ${JWT_EXPIRATION_MS:-3600000}
+      PKI_DB_ENCRYPTION_KEY: ${PKI_DB_ENCRYPTION_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+      PKI_CDP_URL: ${PKI_CDP_URL:-https://localhost/api/v1/ca}
+      PKI_OCSP_URL: ${PKI_OCSP_URL:-https://localhost/api/v1/ocsp}
+      PKI_CA_ISSUER_URL: ${PKI_CA_ISSUER_URL:-https://localhost/api/v1/certificates/}
+      LDAP_ENABLED: ${LDAP_ENABLED:-false}
+      LDAP_URL: ${LDAP_URL:-ldap://localhost:389}
+      LDAP_BASE_DN: ${LDAP_BASE_DN:-dc=example,dc=org}
+      LDAP_BIND_DN: ${LDAP_BIND_DN:-}
+      LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
+    networks:
+      - pki_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      retries: 5
+      start_period: 40s
+
+  # ============================================================
+  # Dedicated OCSP Responder Node
+  # A Spring profile "ocsp" activates only the OCSP controller +
+  # disables all other write-path controllers.
+  # ============================================================
+  ocsp_node:
+    build:
+      context: ./issuingca
+      dockerfile: Dockerfile
+    container_name: pki_ocsp_node
+    restart: unless-stopped
+    depends_on:
+      mariadb:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_PROFILES_ACTIVE: ocsp
+      DB_URL: jdbc:mariadb://mariadb:3306/pki_db
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
+      PKI_DB_ENCRYPTION_KEY: ${PKI_DB_ENCRYPTION_KEY}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    networks:
+      - pki_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:8080/actuator/health || exit 1"]
+      interval: 15s
+      retries: 5
+      start_period: 40s
+
+  # ============================================================
+  # Frontend (Nginx static file server)
+  # ============================================================
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: pki_frontend
+    restart: unless-stopped
+    networks:
+      - pki_net
+
+  # ============================================================
+  # Nginx — TLS termination + Reverse Proxy / Load Balancer
+  # ============================================================
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: pki_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/certs:/etc/nginx/certs:ro
+    depends_on:
+      app1:
+        condition: service_healthy
+      app2:
+        condition: service_healthy
+      ocsp_node:
+        condition: service_healthy
+    networks:
+      - pki_net
+
+volumes:
+  mariadb_data:
+  redis_data:
+
+networks:
+  pki_net:
+    driver: bridge

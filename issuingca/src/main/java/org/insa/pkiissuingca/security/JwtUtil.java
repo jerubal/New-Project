@@ -5,6 +5,7 @@ import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.crypto.MACVerifier;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -14,12 +15,30 @@ import java.util.Date;
 @Component
 public class JwtUtil {
 
-    // A sufficiently long secret key for HMAC SHA-256 (min 256 bits / 32 bytes)
-    @Value("${jwt.secret:default_super_secret_pki_signing_key_2026_minimum_32_bytes_long}")
+    /**
+     * Must be supplied via JWT_SECRET environment variable.
+     * No default is provided — the application will fail to start if this is absent.
+     * Minimum 32 bytes (256 bits) enforced in {@link #validateSecret()}.
+     */
+    @Value("${jwt.secret}")
     private String secret;
 
-    @Value("${jwt.expiration-ms:86400000}") // Default 24 hours
+    @Value("${jwt.expiration-ms:3600000}") // Default 1 hour
     private long expirationMs;
+
+    @PostConstruct
+    public void validateSecret() {
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                "[SECURITY] jwt.secret must be set via the JWT_SECRET environment variable. " +
+                "Generate one with: openssl rand -base64 32");
+        }
+        if (secret.getBytes().length < 32) {
+            throw new IllegalStateException(
+                "[SECURITY] jwt.secret is too short (" + secret.getBytes().length + " bytes). " +
+                "Minimum required length is 32 bytes (256 bits) for HS256.");
+        }
+    }
 
     public String generateToken(String username, String role) throws JOSEException {
         JWTClaimsSet claimsSet = new JWTClaimsSet.Builder()

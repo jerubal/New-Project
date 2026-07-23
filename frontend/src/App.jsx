@@ -5,9 +5,11 @@ import './App.css';
 const API_BASE = 'http://localhost:8080/api/v1';
 
 // Add request interceptor to attach JWT token
+// NOTE: Token is stored in sessionStorage (not localStorage) to limit XSS exposure.
+// sessionStorage is cleared on tab/window close, preventing persistent token theft.
 axios.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('pki_token');
+    const token = sessionStorage.getItem('pki_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
@@ -17,9 +19,9 @@ axios.interceptors.request.use(
 );
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem('pki_token') || null);
-  const [username, setUsername] = useState(localStorage.getItem('pki_username') || '');
-  const [role, setRole] = useState(localStorage.getItem('pki_role') || '');
+  const [token, setToken] = useState(sessionStorage.getItem('pki_token') || null);
+  const [username, setUsername] = useState(sessionStorage.getItem('pki_username') || '');
+  const [role, setRole] = useState(sessionStorage.getItem('pki_role') || '');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [notification, setNotification] = useState(null);
 
@@ -123,9 +125,9 @@ function App() {
         password: loginPassword
       });
       const { token, username: user, role: userRole } = res.data;
-      localStorage.setItem('pki_token', token);
-      localStorage.setItem('pki_username', user);
-      localStorage.setItem('pki_role', userRole);
+      sessionStorage.setItem('pki_token', token);
+      sessionStorage.setItem('pki_username', user);
+      sessionStorage.setItem('pki_role', userRole);
       setToken(token);
       setUsername(user);
       setRole(userRole);
@@ -136,9 +138,9 @@ function App() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('pki_token');
-    localStorage.removeItem('pki_username');
-    localStorage.removeItem('pki_role');
+    sessionStorage.removeItem('pki_token');
+    sessionStorage.removeItem('pki_username');
+    sessionStorage.removeItem('pki_role');
     setToken(null);
     setUsername('');
     setRole('');

@@ -31,6 +31,8 @@ public class KeyPairEntity {
 
     @Lob
     @Column(name = "private_key_pem", nullable = false, columnDefinition = "TEXT")
+    @Convert(converter = org.insa.pkiissuingca.security.PrivateKeyEncryptionConverter.class)
+    @JsonIgnore // SECURITY: private key material must never be returned in API responses
     private String privateKeyPEM;
 
     @Lob
@@ -44,4 +46,60 @@ public class KeyPairEntity {
     @JoinColumn(name = "user_id", nullable = false)
     @JsonIgnore // <--- Add this to stop Jackson from trying to fetch/serialize the User
     private User user;
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getAlgorithm() {
+        return algorithm;
+    }
+
+    public void setAlgorithm(String algorithm) {
+        this.algorithm = algorithm;
+    }
+
+    public Integer getKeySize() {
+        return keySize;
+    }
+
+    public void setKeySize(Integer keySize) {
+        this.keySize = keySize;
+    }
+
+    public String getPrivateKeyPEM() {
+        return privateKeyPEM;
+    }
+
+    public void setPrivateKeyPEM(String privateKeyPEM) {
+        this.privateKeyPEM = privateKeyPEM;
+    }
+
+    public String getPublicKeyPEM() {
+        return publicKeyPEM;
+    }
+
+    public void setPublicKeyPEM(String publicKeyPEM) {
+        this.publicKeyPEM = publicKeyPEM;
+    }
+
+    public Instant getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Instant createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public User getUser() {
+        return user;
+    }
+
+    public void setUser(User user) {
+        this.user = user;
+    }
 }

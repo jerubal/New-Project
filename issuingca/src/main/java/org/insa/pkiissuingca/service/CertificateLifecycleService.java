@@ -11,6 +11,7 @@ import org.insa.pkiissuingca.model.CertificateEntity;
 import org.insa.pkiissuingca.model.CertificateProfileEntity;
 import org.insa.pkiissuingca.model.KeyPairEntity;
 import org.insa.pkiissuingca.model.User;
+import org.insa.pkiissuingca.event.CertificateRevokedEvent;
 import org.insa.pkiissuingca.repository.CertificateProfileRepository;
 import org.insa.pkiissuingca.repository.CertificateRepository;
 import org.insa.pkiissuingca.repository.KeyPairRepository;

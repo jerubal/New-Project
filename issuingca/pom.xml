@@ -86,7 +86,7 @@
 
         <!-- Rate limiting: Bucket4j in-memory token bucket (no Redis required) -->
         <dependency>
-            <groupId>com.github.bucket4j</groupId>
+            <groupId>com.bucket4j</groupId>
             <artifactId>bucket4j-core</artifactId>
             <version>8.10.1</version>
         </dependency>

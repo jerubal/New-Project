@@ -45,7 +45,7 @@ public class CertificateEntity {
     private String publicKeyPEM;
 
     @Column(nullable = false)
-    private String status; // ISSUED, REVOKED, SUSPENDED
+    private String status;
 
     @Column(name = "revocation_reason")
     private String revocationReason;
@@ -58,7 +58,7 @@ public class CertificateEntity {
     private String pemContent;
 
     @Column(name = "certificate_type")
-    private String certificateType; // ROOT, INTERMEDIATE, END_ENTITY
+    private String certificateType;
 
     @Column(name = "profile_name", nullable = false)
     private String profileName;

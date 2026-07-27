@@ -112,7 +112,7 @@ public class CrlGenerationServiceImpl implements CrlGenerationService {
             int reasonCode = mapReasonCode(cert.getStatus(), cert.getRevocationReason());
 
             ExtensionsGenerator extGen = new ExtensionsGenerator();
-            extGen.addExtension(Extension.cRLReason, false, CRLReason.lookup(reasonCode));
+            extGen.addExtension(Extension.reasonCode, false, CRLReason.lookup(reasonCode));
 
             crlBuilder.addCRLEntry(serialNumber, Date.from(revocationTime), extGen.generate());
         }

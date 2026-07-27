@@ -27,12 +27,12 @@ public class KeyPairEntity {
     private String algorithm;
 
     @Column(name = "key_size")
-    private Integer keySize; // optional for RSA/ECC
+    private Integer keySize;
 
     @Lob
     @Column(name = "private_key_pem", nullable = false, columnDefinition = "TEXT")
     @Convert(converter = org.insa.pkiissuingca.security.PrivateKeyEncryptionConverter.class)
-    @JsonIgnore // SECURITY: private key material must never be returned in API responses
+    @JsonIgnore
     private String privateKeyPEM;
 
     @Lob
@@ -44,7 +44,7 @@ public class KeyPairEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", nullable = false)
-    @JsonIgnore // <--- Add this to stop Jackson from trying to fetch/serialize the User
+    @JsonIgnore
     private User user;
 
     public Long getId() {

@@ -5,6 +5,7 @@ import org.bouncycastle.asn1.DEROctetString;
 import org.bouncycastle.asn1.ocsp.OCSPObjectIdentifiers;
 import org.bouncycastle.asn1.ocsp.OCSPResponseStatus;
 import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.CRLReason;
 import org.bouncycastle.asn1.x509.Extension;
 import org.bouncycastle.asn1.x509.Extensions;
 import org.bouncycastle.asn1.x509.KeyPurposeId;
@@ -16,6 +17,8 @@ import org.bouncycastle.cert.jcajce.JcaX509CertificateHolder;
 import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder;
 import org.bouncycastle.cert.ocsp.*;
 import org.bouncycastle.cert.ocsp.jcajce.JcaBasicOCSPRespBuilder;
+import org.bouncycastle.operator.DigestCalculatorProvider;
+import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.insa.pkiissuingca.model.*;
@@ -203,9 +206,9 @@ public class OcspResponderServiceImpl implements OcspResponderService {
         X509Certificate signerX509 = serializationService.parseCertificateFromPem(activeSigner.getSignerCertificate().getPemContent());
         X509CertificateHolder signerHolder = new JcaX509CertificateHolder(signerX509);
 
-        DigestCalculatorProvider digCalcProv = new org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder().setProvider("BC").build();
+        DigestCalculatorProvider digCalcProv = new JcaDigestCalculatorProviderBuilder().setProvider("BC").build();
         RespID respID = new RespID(signerHolder.getSubject());
-        JcaBasicOCSPRespBuilder respBuilder = new JcaBasicOCSPRespBuilder(signerHolder.getPublicKey(), digCalcProv.get(RespID.HASH_SHA1));
+        JcaBasicOCSPRespBuilder respBuilder = new JcaBasicOCSPRespBuilder(signerX509.getPublicKey(), digCalcProv.get(RespID.HASH_SHA1));
 
         Req[] requests = ocspReq.getRequestList();
         Instant now = Instant.now();

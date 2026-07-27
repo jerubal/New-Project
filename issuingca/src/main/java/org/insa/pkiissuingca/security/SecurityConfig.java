@@ -42,8 +42,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .headers(headers -> headers
-                        .contentTypeOptions(contentTypeOptions -> {}) // X-Content-Type-Options: nosniff
-                        .frameOptions(frameOptions -> frameOptions.deny())  // X-Frame-Options: DENY
+                        .contentTypeOptions(contentTypeOptions -> {})
+                        .frameOptions(frameOptions -> frameOptions.deny())
                         .referrerPolicy(referrer ->
                                 referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.NO_REFERRER))
                         .httpStrictTransportSecurity(hsts -> hsts
@@ -55,7 +55,6 @@ public class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/v1/certificates/*/pem").permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/v1/ca/*/crl/latest.crl", "/api/v1/ca/*/crl/latest.pem").permitAll()
                         .requestMatchers("/api/v1/ocsp/**").permitAll()
-                        // Only health/info are public; all other actuator endpoints require CA_ADMIN
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         .requestMatchers("/actuator/**").hasRole("CA_ADMIN")
                         .anyRequest().authenticated()

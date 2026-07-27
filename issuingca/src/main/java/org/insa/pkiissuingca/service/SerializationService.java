@@ -22,8 +22,14 @@ import java.security.cert.X509Certificate;
 import java.security.spec.PKCS8EncodedKeySpec;
 import java.security.spec.X509EncodedKeySpec;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Service;
+
 @Service
 public class SerializationService {
+
+    @Autowired
+    private HsmService hsmService;
 
     /**
      * Converts any supported object (Certificate, KeyPair, CSR, PrivateKey) into standard PEM format.
@@ -68,9 +74,12 @@ public class SerializationService {
     }
 
     /**
-     * Parses a Private Key from a PEM string.
+     * Parses a Private Key from a PEM string or retrieves it from the HSM.
      */
     public PrivateKey parsePrivateKeyFromPem(String pemStr) throws Exception {
+        if (pemStr != null && pemStr.startsWith("HSM:")) {
+            return hsmService.getPrivateKey(pemStr.substring(4));
+        }
         try (PEMParser pemParser = new PEMParser(new StringReader(pemStr))) {
             Object parsed = pemParser.readObject();
             JcaPEMKeyConverter converter = new JcaPEMKeyConverter().setProvider("BC");

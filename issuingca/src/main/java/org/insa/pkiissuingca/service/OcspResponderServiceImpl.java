@@ -59,6 +59,9 @@ public class OcspResponderServiceImpl implements OcspResponderService {
     private UserRepository userRepository;
 
     @Autowired
+    private HsmService hsmService;
+
+    @Autowired
     private CryptoService cryptoService;
 
     @Autowired
@@ -99,11 +102,17 @@ public class OcspResponderServiceImpl implements OcspResponderService {
         X509Certificate caX509 = serializationService.parseCertificateFromPem(caCertEntity.getPemContent());
 
         // Generate OCSP Signer KeyPair
-        KeyPair signerKeyPair = cryptoService.generateRsaKeyPair(2048);
+        KeyPair signerKeyPair = cryptoService.generateRsaKeyPair(2048, true);
         KeyPairEntity signerKpEntity = new KeyPairEntity();
         signerKpEntity.setAlgorithm("RSA");
         signerKpEntity.setKeySize(2048);
-        signerKpEntity.setPrivateKeyPEM(serializationService.convertToPem(signerKeyPair.getPrivate()));
+        
+        if (signerKeyPair.getPrivate().getClass().getName().contains("P11PrivateKey")) {
+            signerKpEntity.setPrivateKeyPEM("HSM:PENDING");
+        } else {
+            signerKpEntity.setPrivateKeyPEM(serializationService.convertToPem(signerKeyPair.getPrivate()));
+        }
+        
         signerKpEntity.setPublicKeyPEM(serializationService.convertToPem(signerKeyPair.getPublic()));
         signerKpEntity.setCreatedAt(Instant.now());
         signerKpEntity.setUser(user);
@@ -132,7 +141,7 @@ public class OcspResponderServiceImpl implements OcspResponderService {
         // OCSPNoCheck Extension (1.3.6.1.5.5.7.48.1.5)
         certBuilder.addExtension(OCSPObjectIdentifiers.id_pkix_ocsp_nocheck, false, DERNull.INSTANCE);
 
-        ContentSigner signer = new JcaContentSignerBuilder("SHA256withRSA").setProvider("BC").build(caPrivateKey);
+        ContentSigner signer = cryptoService.getContentSigner(caPrivateKey, "SHA256withRSA");
         X509Certificate signerCert = new JcaX509CertificateConverter().setProvider("BC").getCertificate(certBuilder.build(signer));
 
         CertificateEntity signerCertEntity = new CertificateEntity();
@@ -149,6 +158,13 @@ public class OcspResponderServiceImpl implements OcspResponderService {
         signerCertEntity.setParentCa(caCertEntity);
 
         CertificateEntity savedCert = certificateRepository.save(signerCertEntity);
+
+        if ("HSM:PENDING".equals(signerKpEntity.getPrivateKeyPEM())) {
+            String alias = serial.toString();
+            hsmService.storeInHsm(alias, signerKeyPair.getPrivate(), new java.security.cert.Certificate[]{signerCert});
+            signerKpEntity.setPrivateKeyPEM("HSM:" + alias);
+            keyPairRepository.save(signerKpEntity);
+        }
 
         // Revoke older active signers for this CA
         List<OcspSignerEntity> existing = ocspSignerRepository.findByCaCertificateIdOrderByCreatedAtDesc(caCertEntity.getId());
@@ -268,7 +284,7 @@ public class OcspResponderServiceImpl implements OcspResponderService {
             respBuilder.setResponseExtensions(new Extensions(nonceExt));
         }
 
-        ContentSigner contentSigner = new JcaContentSignerBuilder("SHA256withRSA").setProvider("BC").build(signerPrivateKey);
+        ContentSigner contentSigner = cryptoService.getContentSigner(signerPrivateKey, "SHA256withRSA");
         X509CertificateHolder[] chain = new X509CertificateHolder[]{ signerHolder };
 
         BasicOCSPResp basicResp = respBuilder.build(contentSigner, chain, Date.from(now));

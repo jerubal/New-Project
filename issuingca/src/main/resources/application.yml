@@ -1,8 +1,8 @@
 spring:
   datasource:
     url: ${DB_URL:jdbc:mariadb://localhost:3306/pki_db}
-    username: ${DB_USERNAME:root}
-    password: ${DB_PASSWORD:1234}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: org.mariadb.jdbc.Driver
 
   data:
@@ -13,10 +13,14 @@ spring:
 
   jpa:
     hibernate:
-      ddl-auto: update
-    show-sql: true
+      ddl-auto: validate
+    show-sql: false
     open-in-view: false
     database-platform: org.hibernate.dialect.MariaDBDialect
+
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
 
 management:
   endpoints:
@@ -24,9 +28,24 @@ management:
       exposure:
         include: health,info,metrics
 
+jwt:
+  secret: ${JWT_SECRET}
+
 pki:
+  security:
+    db-encryption-key: ${PKI_DB_ENCRYPTION_KEY}
   cdp:
     url: ${PKI_CDP_URL:http://localhost:8080/api/v1/crl}
   aia:
     ocsp-url: ${PKI_OCSP_URL:http://localhost:8080/api/v1/ocsp}
     ca-issuer-base-url: ${PKI_CA_ISSUER_URL:http://localhost:8080/api/v1/certificates/}
+  hsm:
+    enabled: ${PKI_HSM_ENABLED:true}
+    library: ${PKI_HSM_LIBRARY:/usr/lib/softhsm/libsofthsm2.so}
+    slot: ${PKI_HSM_SLOT:0}
+    pin: ${HSM_PIN:1234}
+
+ldap:
+  enabled: ${LDAP_ENABLED:false}
+  url: ${LDAP_URL:ldap://localhost:389}
+  base-dn: ${LDAP_BASE_DN:dc=example,dc=org}

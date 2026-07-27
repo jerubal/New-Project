@@ -42,6 +42,9 @@ public class CrlGenerationServiceImpl implements CrlGenerationService {
     private CertificateRepository certificateRepository;
 
     @Autowired
+    private CryptoService cryptoService;
+
+    @Autowired
     private CrlRepository crlRepository;
 
     @Autowired
@@ -124,7 +127,7 @@ public class CrlGenerationServiceImpl implements CrlGenerationService {
 
         // 6. Sign CRL
         String sigAlg = getSignatureAlgorithm(caKeyPair.getAlgorithm(), caCertEntity.getProfileName());
-        ContentSigner signer = new JcaContentSignerBuilder(sigAlg).setProvider("BC").build(caPrivateKey);
+        ContentSigner signer = cryptoService.getContentSigner(caPrivateKey, sigAlg);
         X509CRLHolder crlHolder = crlBuilder.build(signer);
 
         JcaX509CRLConverter converter = new JcaX509CRLConverter().setProvider("BC");

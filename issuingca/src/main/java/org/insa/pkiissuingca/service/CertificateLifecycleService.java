@@ -47,6 +47,9 @@ public class CertificateLifecycleService {
     private CryptoService cryptoService;
 
     @Autowired
+    private HsmService hsmService;
+
+    @Autowired
     private SerializationService serializationService;
 
     @Autowired
@@ -90,13 +93,13 @@ public class CertificateLifecycleService {
         String algorithm;
         if ("EC".equalsIgnoreCase(keyType) || "ECDSA".equalsIgnoreCase(keyType)) {
             String curve = keySizeOrCurve == 384 ? "secp384r1" : (keySizeOrCurve == 521 ? "secp521r1" : "secp256r1");
-            keyPair = cryptoService.generateEcKeyPair(curve);
+            keyPair = cryptoService.generateEcKeyPair(curve, true);
             algorithm = "EC";
         } else if ("Ed25519".equalsIgnoreCase(keyType)) {
             keyPair = cryptoService.generateEd25519KeyPair();
             algorithm = "Ed25519";
         } else {
-            keyPair = cryptoService.generateRsaKeyPair(keySizeOrCurve > 0 ? keySizeOrCurve : 2048);
+            keyPair = cryptoService.generateRsaKeyPair(keySizeOrCurve > 0 ? keySizeOrCurve : 2048, true);
             algorithm = "RSA";
         }
 
@@ -104,7 +107,12 @@ public class CertificateLifecycleService {
         KeyPairEntity kpEntity = new KeyPairEntity();
         kpEntity.setAlgorithm(algorithm);
         kpEntity.setKeySize(keySizeOrCurve);
-        kpEntity.setPrivateKeyPEM(serializationService.convertToPem(keyPair.getPrivate()));
+        
+        if (keyPair.getPrivate().getClass().getName().contains("P11PrivateKey")) {
+            kpEntity.setPrivateKeyPEM("HSM:PENDING");
+        } else {
+            kpEntity.setPrivateKeyPEM(serializationService.convertToPem(keyPair.getPrivate()));
+        }
         kpEntity.setPublicKeyPEM(serializationService.convertToPem(keyPair.getPublic()));
         kpEntity.setCreatedAt(Instant.now());
         kpEntity.setUser(user);
@@ -151,7 +159,7 @@ public class CertificateLifecycleService {
             sigAlg = "Ed25519";
         }
 
-        ContentSigner signer = new JcaContentSignerBuilder(sigAlg).setProvider("BC").build(keyPair.getPrivate());
+        ContentSigner signer = cryptoService.getContentSigner(keyPair.getPrivate(), sigAlg);
         X509Certificate cert = new JcaX509CertificateConverter().setProvider("BC").getCertificate(certBuilder.build(signer));
 
         CertificateEntity certEntity = new CertificateEntity();
@@ -168,6 +176,13 @@ public class CertificateLifecycleService {
         certEntity.setParentCa(null); // Self-signed Root CA has no parent CA entity
 
         CertificateEntity saved = certificateRepository.save(certEntity);
+
+        if ("HSM:PENDING".equals(kpEntity.getPrivateKeyPEM())) {
+            String alias = serial.toString();
+            hsmService.storeInHsm(alias, keyPair.getPrivate(), new java.security.cert.Certificate[]{cert});
+            kpEntity.setPrivateKeyPEM("HSM:" + alias);
+            keyPairRepository.save(kpEntity);
+        }
 
         ldapPublisherService.publishCertificate(saved);
 
@@ -225,13 +240,13 @@ public class CertificateLifecycleService {
         String algorithm;
         if ("EC".equalsIgnoreCase(keyType) || "ECDSA".equalsIgnoreCase(keyType)) {
             String curve = keySizeOrCurve == 384 ? "secp384r1" : (keySizeOrCurve == 521 ? "secp521r1" : "secp256r1");
-            keyPair = cryptoService.generateEcKeyPair(curve);
+            keyPair = cryptoService.generateEcKeyPair(curve, true);
             algorithm = "EC";
         } else if ("Ed25519".equalsIgnoreCase(keyType)) {
             keyPair = cryptoService.generateEd25519KeyPair();
             algorithm = "Ed25519";
         } else {
-            keyPair = cryptoService.generateRsaKeyPair(keySizeOrCurve > 0 ? keySizeOrCurve : 2048);
+            keyPair = cryptoService.generateRsaKeyPair(keySizeOrCurve > 0 ? keySizeOrCurve : 2048, true);
             algorithm = "RSA";
         }
 
@@ -239,7 +254,11 @@ public class CertificateLifecycleService {
         KeyPairEntity kpEntity = new KeyPairEntity();
         kpEntity.setAlgorithm(algorithm);
         kpEntity.setKeySize(keySizeOrCurve);
-        kpEntity.setPrivateKeyPEM(serializationService.convertToPem(keyPair.getPrivate()));
+        if (keyPair.getPrivate().getClass().getName().contains("P11PrivateKey")) {
+            kpEntity.setPrivateKeyPEM("HSM:PENDING");
+        } else {
+            kpEntity.setPrivateKeyPEM(serializationService.convertToPem(keyPair.getPrivate()));
+        }
         kpEntity.setPublicKeyPEM(serializationService.convertToPem(keyPair.getPublic()));
         kpEntity.setCreatedAt(Instant.now());
         kpEntity.setUser(user);
@@ -298,7 +317,7 @@ public class CertificateLifecycleService {
             sigAlg = "Ed25519";
         }
 
-        ContentSigner signer = new JcaContentSignerBuilder(sigAlg).setProvider("BC").build(parentPrivateKey);
+        ContentSigner signer = cryptoService.getContentSigner(parentPrivateKey, sigAlg);
         X509Certificate cert = new JcaX509CertificateConverter().setProvider("BC").getCertificate(certBuilder.build(signer));
 
         CertificateEntity certEntity = new CertificateEntity();
@@ -315,6 +334,13 @@ public class CertificateLifecycleService {
         certEntity.setParentCa(parentCertEntity); // Link parent CA entity
 
         CertificateEntity saved = certificateRepository.save(certEntity);
+
+        if ("HSM:PENDING".equals(kpEntity.getPrivateKeyPEM())) {
+            String alias = serial.toString();
+            hsmService.storeInHsm(alias, keyPair.getPrivate(), new java.security.cert.Certificate[]{cert});
+            kpEntity.setPrivateKeyPEM("HSM:" + alias);
+            keyPairRepository.save(kpEntity);
+        }
 
         ldapPublisherService.publishCertificate(saved);
 
@@ -441,7 +467,7 @@ public class CertificateLifecycleService {
             sigAlg = "Ed25519";
         }
 
-        ContentSigner signer = new JcaContentSignerBuilder(sigAlg).setProvider("BC").build(caPrivateKey);
+        ContentSigner signer = cryptoService.getContentSigner(caPrivateKey, sigAlg);
         X509Certificate cert = new JcaX509CertificateConverter().setProvider("BC").getCertificate(certBuilder.build(signer));
 
         CertificateEntity certEntity = new CertificateEntity();
@@ -536,7 +562,7 @@ public class CertificateLifecycleService {
             sigAlg = "Ed25519";
         }
 
-        ContentSigner signer = new JcaContentSignerBuilder(sigAlg).setProvider("BC").build(caPrivateKey);
+        ContentSigner signer = cryptoService.getContentSigner(caPrivateKey, sigAlg);
         X509Certificate newX509 = new JcaX509CertificateConverter().setProvider("BC").getCertificate(certBuilder.build(signer));
 
         // Revoke the old certificate as "superseded"

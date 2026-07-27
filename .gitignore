@@ -1,0 +1,9 @@
+.env
+.env.*
+docker/nginx/certs/*.key
+docker/nginx/certs/*.crt
+target/
+*.class
+.idea/
+*.iml
+.vscode/

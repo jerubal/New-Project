@@ -73,6 +73,10 @@ services:
       LDAP_BASE_DN: ${LDAP_BASE_DN:-dc=example,dc=org}
       LDAP_BIND_DN: ${LDAP_BIND_DN:-}
       LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
+      HSM_PIN: ${HSM_PIN:-1234}
+      HSM_SO_PIN: ${HSM_SO_PIN:-1234}
+    volumes:
+      - softhsm_data:/var/lib/softhsm/tokens
     networks:
       - pki_net
     healthcheck:
@@ -113,6 +117,10 @@ services:
       LDAP_BASE_DN: ${LDAP_BASE_DN:-dc=example,dc=org}
       LDAP_BIND_DN: ${LDAP_BIND_DN:-}
       LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
+      HSM_PIN: ${HSM_PIN:-1234}
+      HSM_SO_PIN: ${HSM_SO_PIN:-1234}
+    volumes:
+      - softhsm_data:/var/lib/softhsm/tokens
     networks:
       - pki_net
     healthcheck:
@@ -147,6 +155,10 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_PASSWORD: ${REDIS_PASSWORD}
+      HSM_PIN: ${HSM_PIN:-1234}
+      HSM_SO_PIN: ${HSM_SO_PIN:-1234}
+    volumes:
+      - softhsm_data:/var/lib/softhsm/tokens
     networks:
       - pki_net
     healthcheck:
@@ -193,6 +205,7 @@ services:
 volumes:
   mariadb_data:
   redis_data:
+  softhsm_data:
 
 networks:
   pki_net:

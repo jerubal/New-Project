@@ -33,6 +33,9 @@ public class CsrService {
     @Autowired
     private SerializationService serializationService;
 
+    @Autowired
+    private CryptoService cryptoService;
+
     /**
      * Programmatically builds a standardized PKCS#10 CSR.
      */
@@ -61,7 +64,7 @@ public class CsrService {
             builder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest, extGen.generate());
         }
 
-        ContentSigner signer = new JcaContentSignerBuilder(sigAlg).setProvider("BC").build(keyPair.getPrivate());
+        ContentSigner signer = cryptoService.getContentSigner(keyPair.getPrivate(), sigAlg);
         PKCS10CertificationRequest csr = builder.build(signer);
 
         return serializationService.convertToPem(csr);

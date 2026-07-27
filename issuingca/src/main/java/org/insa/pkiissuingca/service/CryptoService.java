@@ -88,7 +88,7 @@ public class CryptoService {
     }
     
     public ContentSigner getContentSigner(PrivateKey privateKey, String signatureAlgorithm) throws Exception {
-        if (hsmService.isHsmEnabled() && privateKey.getClass().getName().contains("P11PrivateKey")) {
+        if (hsmService.isHsmEnabled()) {
              return hsmService.getHsmContentSigner(privateKey, signatureAlgorithm);
         } else {
              return new JcaContentSignerBuilder(signatureAlgorithm)

@@ -34,7 +34,11 @@ public class HsmConfig {
             logger.info("Initializing SunPKCS11 Provider with library: {}", hsmLibrary);
             String pkcs11Config = "name = SoftHSM\n" +
                                   "library = " + hsmLibrary + "\n" +
-                                  "slot = " + hsmSlot + "\n";
+                                  "slot = " + hsmSlot + "\n" +
+                                  "attributes = generate,CKO_PRIVATE_KEY,* {\n" +
+                                  "  CKA_SENSITIVE = true\n" +
+                                  "  CKA_EXTRACTABLE = false\n" +
+                                  "}\n";
 
             Provider pkcs11Provider = Security.getProvider("SunPKCS11");
             if (pkcs11Provider != null) {

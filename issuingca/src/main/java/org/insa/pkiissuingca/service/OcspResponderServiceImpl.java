@@ -107,7 +107,7 @@ public class OcspResponderServiceImpl implements OcspResponderService {
         signerKpEntity.setAlgorithm("RSA");
         signerKpEntity.setKeySize(2048);
         
-        if (signerKeyPair.getPrivate().getClass().getName().contains("P11PrivateKey")) {
+        if (hsmService.isHsmEnabled()) {
             signerKpEntity.setPrivateKeyPEM("HSM:PENDING");
         } else {
             signerKpEntity.setPrivateKeyPEM(serializationService.convertToPem(signerKeyPair.getPrivate()));

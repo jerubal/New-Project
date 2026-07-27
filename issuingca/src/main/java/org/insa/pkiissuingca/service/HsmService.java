@@ -16,7 +16,7 @@ public class HsmService {
     @Value("${pki.hsm.enabled:false}")
     private boolean hsmEnabled;
 
-    @Value("${pki.hsm.pin:1234}")
+    @Value("${pki.hsm.pin}")
     private String hsmPin;
 
     /**

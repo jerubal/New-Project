@@ -43,7 +43,7 @@ pki:
     enabled: ${PKI_HSM_ENABLED:true}
     library: ${PKI_HSM_LIBRARY:/usr/lib/softhsm/libsofthsm2.so}
     slot: ${PKI_HSM_SLOT:0}
-    pin: ${HSM_PIN:1234}
+    pin: ${HSM_PIN}
 
 ldap:
   enabled: ${LDAP_ENABLED:false}

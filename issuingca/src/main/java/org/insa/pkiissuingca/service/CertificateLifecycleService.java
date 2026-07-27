@@ -108,7 +108,7 @@ public class CertificateLifecycleService {
         kpEntity.setAlgorithm(algorithm);
         kpEntity.setKeySize(keySizeOrCurve);
         
-        if (keyPair.getPrivate().getClass().getName().contains("P11PrivateKey")) {
+        if (hsmService.isHsmEnabled()) {
             kpEntity.setPrivateKeyPEM("HSM:PENDING");
         } else {
             kpEntity.setPrivateKeyPEM(serializationService.convertToPem(keyPair.getPrivate()));

@@ -42,7 +42,11 @@ public class CryptoService {
             throw new IllegalArgumentException("Unsupported RSA key size: " + keySize + ". Must be 2048, 3072, or 4096.");
         }
         if (useHsm && hsmService.isHsmEnabled()) {
-            return hsmService.generateRsaKeyPair(keySize);
+            try {
+                return hsmService.generateRsaKeyPair(keySize);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to generate RSA key pair on HSM: " + e.getMessage(), e);
+            }
         }
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME);
         keyGen.initialize(keySize);
@@ -59,7 +63,11 @@ public class CryptoService {
     public KeyPair generateEcKeyPair(String curveName, boolean useHsm) throws NoSuchAlgorithmException, NoSuchProviderException, InvalidAlgorithmParameterException {
         String standardName = resolveCurveName(curveName);
         if (useHsm && hsmService.isHsmEnabled()) {
-            return hsmService.generateEcKeyPair(standardName);
+            try {
+                return hsmService.generateEcKeyPair(standardName);
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to generate EC key pair on HSM: " + e.getMessage(), e);
+            }
         }
         KeyPairGenerator keyGen = KeyPairGenerator.getInstance("EC", BouncyCastleProvider.PROVIDER_NAME);
         keyGen.initialize(new ECGenParameterSpec(standardName));

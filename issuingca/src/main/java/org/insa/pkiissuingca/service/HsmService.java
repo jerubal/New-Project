@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.security.*;
+import java.security.cert.Certificate;
 
 @Service
 public class HsmService {
@@ -31,6 +32,10 @@ public class HsmService {
         return keyStore;
     }
 
+    public KeyPair generateRsaKeyPair(int keySize) throws Exception {
+        return generateRsaKeyPair(keySize, null);
+    }
+
     /**
      * Generates a non-exportable RSA KeyPair directly on the HSM and persists it.
      */
@@ -53,7 +58,10 @@ public class HsmService {
         return keyPair;
     }
 
-    
+    public KeyPair generateEcKeyPair(String curveName) throws Exception {
+        return generateEcKeyPair(curveName, null);
+    }
+
     /**
      * Generates a non-exportable EC KeyPair directly on the HSM.
      */

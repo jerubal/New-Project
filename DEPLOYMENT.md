@@ -23,7 +23,8 @@ Copy the output into a `.env` file at the project root (next to `docker-compose.
 ## 2. Generate the self-signed TLS certificate for Nginx
 
 ```bash
-cd "issuingca 1"
+# Navigate to the project root directory (e.g., New-Project)
+cd New-Project
 bash docker/nginx/generate-dev-cert.sh
 ```
 

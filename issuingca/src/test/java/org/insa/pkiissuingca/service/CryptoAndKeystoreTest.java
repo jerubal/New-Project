@@ -26,9 +26,14 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class CryptoAndKeystoreTest {
 
-    private final CryptoService cryptoService = new CryptoService();
+    private final HsmService hsmService = org.mockito.Mockito.mock(HsmService.class);
+    private final CryptoService cryptoService = new CryptoService(hsmService);
     private final SerializationService serializationService = new SerializationService();
     private final KeystoreService keystoreService = new KeystoreService();
+
+    {
+        ReflectionTestUtils.setField(serializationService, "hsmService", hsmService);
+    }
 
     @BeforeAll
     public static void setUp() {
@@ -144,6 +149,7 @@ public class CryptoAndKeystoreTest {
     public void testCsrGenerationAndParsing() throws Exception {
         CsrService csrService = new CsrService();
         ReflectionTestUtils.setField(csrService, "serializationService", serializationService);
+        ReflectionTestUtils.setField(csrService, "cryptoService", cryptoService);
 
         KeyPair keyPair = cryptoService.generateRsaKeyPair(2048);
         String subjectDN = "CN=Client Application,O=INSA,C=FR";
@@ -165,6 +171,7 @@ public class CryptoAndKeystoreTest {
     public void testCsrPolicyValidationWeakAlgorithm() throws Exception {
         CsrService csrService = new CsrService();
         ReflectionTestUtils.setField(csrService, "serializationService", serializationService);
+        ReflectionTestUtils.setField(csrService, "cryptoService", cryptoService);
 
         KeyPair keyPair = cryptoService.generateRsaKeyPair(2048);
         String subjectDN = "CN=WeakAlgTest,O=INSA,C=FR";

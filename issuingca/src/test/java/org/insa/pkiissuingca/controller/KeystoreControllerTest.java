@@ -35,9 +35,14 @@ import static org.junit.jupiter.api.Assertions.*;
 
 public class KeystoreControllerTest {
 
-    private static final CryptoService cryptoService = new CryptoService();
+    private static final HsmService hsmService = org.mockito.Mockito.mock(HsmService.class);
+    private static final CryptoService cryptoService = new CryptoService(hsmService);
     private static final SerializationService serializationService = new SerializationService();
     private static final KeystoreService keystoreService = new KeystoreService();
+
+    static {
+        ReflectionTestUtils.setField(serializationService, "hsmService", hsmService);
+    }
 
     @BeforeAll
     public static void setUpBouncyCastle() {

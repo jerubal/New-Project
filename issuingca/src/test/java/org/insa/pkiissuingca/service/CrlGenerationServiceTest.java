@@ -46,6 +46,12 @@ public class CrlGenerationServiceTest {
     private CertificateLifecycleService lifecycleService;
 
     @Autowired
+    private CryptoService cryptoService;
+
+    @Autowired
+    private CsrService csrService;
+
+    @Autowired
     private CrlGenerationService crlGenerationService;
 
     @Autowired
@@ -112,8 +118,8 @@ public class CrlGenerationServiceTest {
                 "-----END CERTIFICATE REQUEST-----";
 
         // Generate a real CSR using CryptoService & CsrService to avoid parsing errors
-        java.security.KeyPair kp = new org.insa.pkiissuingca.service.CryptoService().generateRsaKeyPair(2048);
-        String realCsrPem = new org.insa.pkiissuingca.service.CsrService().generateCsr(kp, "CN=test.example.com,O=INSA,C=FR", null, "SHA256withRSA");
+        java.security.KeyPair kp = cryptoService.generateRsaKeyPair(2048);
+        String realCsrPem = csrService.generateCsr(kp, "CN=test.example.com,O=INSA,C=FR", null, "SHA256withRSA");
 
         CertificateEntity eeCert = lifecycleService.signCsr(realCsrPem, subCa.getSerialNumber(), "EndEntity", adminUser.getUsername());
         assertNotNull(eeCert);

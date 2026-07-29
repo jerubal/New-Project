@@ -17,6 +17,7 @@ import org.insa.pkiissuingca.service.AuditService;
 import org.insa.pkiissuingca.service.CryptoService;
 import org.insa.pkiissuingca.service.KeystoreService;
 import org.insa.pkiissuingca.service.SerializationService;
+import org.insa.pkiissuingca.service.HsmService;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.ResponseEntity;

@@ -36,11 +36,21 @@ public class AuthController {
     @Autowired
     private AuditService auditService;
 
+    private static final String DUMMY_HASH = "$2a$10$x8R8/Roxp.Cq1L1QeF6rkuO1gW5XN1d8O1L5uL1oG1U1d1S1.1T1.";
+
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest loginRequest) {
         User user = userRepository.findByUsername(loginRequest.getUsername()).orElse(null);
 
-        if (user == null || !passwordEncoder.matches(loginRequest.getPassword(), user.getPassword())) {
+        boolean passwordMatches;
+        if (user != null) {
+            passwordMatches = passwordEncoder.matches(loginRequest.getPassword(), user.getPassword());
+        } else {
+            passwordEncoder.matches(loginRequest.getPassword(), DUMMY_HASH);
+            passwordMatches = false;
+        }
+
+        if (user == null || !passwordMatches) {
             auditService.log(loginRequest.getUsername(), "LOGIN", "Failed login attempt", "FAILURE", "127.0.0.1");
             return ResponseEntity.status(401).body("Invalid username or password");
         }

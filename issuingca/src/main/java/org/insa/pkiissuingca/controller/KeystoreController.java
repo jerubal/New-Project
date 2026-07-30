@@ -53,6 +53,9 @@ public class KeystoreController {
     @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'END_ENTITY', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR', 'ROLE_END_ENTITY')")
     public ResponseEntity<?> exportPkcs12(@Valid @RequestBody KeystoreExportRequest request) {
         String username = getCurrentUsername();
+        if (request.getPassword() == null || request.getPassword().length() < 12) {
+            return ResponseEntity.badRequest().body("Keystore password must be at least 12 characters long.");
+        }
         try {
             CertificateEntity certEntity = certificateRepository.findBySerialNumber(request.getSerialNumber())
                     .orElseThrow(() -> new IllegalArgumentException("Certificate not found: " + request.getSerialNumber()));
@@ -108,6 +111,9 @@ public class KeystoreController {
     @PreAuthorize("hasAnyRole('CA_ADMIN', 'RA_OPERATOR', 'ROLE_CA_ADMIN', 'ROLE_RA_OPERATOR')")
     public ResponseEntity<?> convertKeystore(@Valid @RequestBody KeystoreConvertRequest request) {
         String username = getCurrentUsername();
+        if (request.getTargetPassword() == null || request.getTargetPassword().length() < 12) {
+            return ResponseEntity.badRequest().body("Target keystore password must be at least 12 characters long.");
+        }
         try {
             byte[] sourceBytes = Base64.getDecoder().decode(request.getSourceKeystoreBase64());
             byte[] convertedBytes = keystoreService.convertKeystore(

@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.io.IOException;
 import java.time.Duration;
@@ -26,6 +27,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     private final Map<String, Bucket> buckets = new ConcurrentHashMap<>();
 
+    @Value("${pki.security.trust-proxy-headers:false}")
+    private boolean trustProxyHeaders;
+
     @Override
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
@@ -35,6 +39,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if ("POST".equalsIgnoreCase(request.getMethod()) &&
                 LOGIN_PATH.equals(request.getRequestURI())) {
 
+            if (buckets.size() > 10000) {
+                buckets.clear();
+            }
             String clientIp = resolveClientIp(request);
             Bucket bucket = buckets.computeIfAbsent(clientIp, this::newBucket);
 
@@ -62,10 +69,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            String[] parts = xff.split(",");
-            return parts[parts.length - 1].trim();
+        if (trustProxyHeaders) {
+            String xff = request.getHeader("X-Forwarded-For");
+            if (xff != null && !xff.isBlank()) {
+                String[] parts = xff.split(",");
+                return parts[parts.length - 1].trim();
+            }
         }
         return request.getRemoteAddr();
     }

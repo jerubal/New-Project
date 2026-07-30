@@ -75,6 +75,9 @@ services:
       LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
       HSM_PIN: ${HSM_PIN:?HSM_PIN is required}
       HSM_SO_PIN: ${HSM_SO_PIN:?HSM_SO_PIN is required}
+      PKI_ADMIN_PASSWORD: ${PKI_ADMIN_PASSWORD:?PKI_ADMIN_PASSWORD is required}
+      PKI_OPERATOR_PASSWORD: ${PKI_OPERATOR_PASSWORD:?PKI_OPERATOR_PASSWORD is required}
+      PKI_SECURITY_TRUST_PROXY_HEADERS: ${PKI_SECURITY_TRUST_PROXY_HEADERS:-true}
     volumes:
       - softhsm_data:/var/lib/softhsm/tokens
     networks:
@@ -119,6 +122,9 @@ services:
       LDAP_BIND_PASSWORD: ${LDAP_BIND_PASSWORD:-}
       HSM_PIN: ${HSM_PIN:?HSM_PIN is required}
       HSM_SO_PIN: ${HSM_SO_PIN:?HSM_SO_PIN is required}
+      PKI_ADMIN_PASSWORD: ${PKI_ADMIN_PASSWORD:?PKI_ADMIN_PASSWORD is required}
+      PKI_OPERATOR_PASSWORD: ${PKI_OPERATOR_PASSWORD:?PKI_OPERATOR_PASSWORD is required}
+      PKI_SECURITY_TRUST_PROXY_HEADERS: ${PKI_SECURITY_TRUST_PROXY_HEADERS:-true}
     volumes:
       - softhsm_data:/var/lib/softhsm/tokens
     networks:

@@ -12,11 +12,38 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+import jakarta.servlet.http.HttpServletRequest;
 
 @Service
 public class AuditService {
 
     private static final Logger logger = LoggerFactory.getLogger(AuditService.class);
+
+    @Value("${pki.security.trust-proxy-headers:false}")
+    private boolean trustProxyHeaders;
+
+    private String resolveCurrentIp() {
+        try {
+            org.springframework.web.context.request.RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+            if (attributes instanceof ServletRequestAttributes servletAttrs) {
+                HttpServletRequest req = servletAttrs.getRequest();
+                if (trustProxyHeaders) {
+                    String xff = req.getHeader("X-Forwarded-For");
+                    if (xff != null && !xff.isBlank()) {
+                        String[] parts = xff.split(",");
+                        return parts[parts.length - 1].trim();
+                    }
+                }
+                return req.getRemoteAddr();
+            }
+        } catch (Exception e) {
+            // Spring Request Context not available (e.g. background task / startup)
+        }
+        return "127.0.0.1";
+    }
     private static final String GENESIS_SALT = "CA_GENESIS_SALT_2026_INIT";
 
     @Autowired
@@ -33,7 +60,7 @@ public class AuditService {
         entry.setAction(action);
         entry.setDetails(details);
         entry.setStatus(status);
-        entry.setIpAddress(ipAddress != null ? ipAddress : "127.0.0.1");
+        entry.setIpAddress((ipAddress == null || "127.0.0.1".equals(ipAddress)) ? resolveCurrentIp() : ipAddress);
 
         // Calculate Chained Checksum to enforce immutable append-only record integrity
         try {

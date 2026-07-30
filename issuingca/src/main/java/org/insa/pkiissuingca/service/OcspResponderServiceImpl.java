@@ -45,6 +45,7 @@ import java.util.Optional;
 public class OcspResponderServiceImpl implements OcspResponderService {
 
     private static final Logger log = LoggerFactory.getLogger(OcspResponderServiceImpl.class);
+    private final java.security.SecureRandom secureRandom = new java.security.SecureRandom();
 
     @Autowired
     private CertificateRepository certificateRepository;
@@ -121,7 +122,10 @@ public class OcspResponderServiceImpl implements OcspResponderService {
         // Build short-lived OCSP Signer Certificate
         Instant now = Instant.now();
         Instant notAfter = now.plus(Duration.ofDays(ocspSignerValidityDays));
-        BigInteger serial = BigInteger.valueOf(System.nanoTime());
+        BigInteger serial;
+        do {
+            serial = new BigInteger(160, secureRandom);
+        } while (serial.compareTo(BigInteger.ZERO) <= 0);
 
         String subjectDN = "CN=OCSP Responder (" + caSerial + "),O=INSA,C=FR";
         X500Name subject = new X500Name(subjectDN);

@@ -34,6 +34,9 @@ public class CertificateController {
     @Autowired
     private CertificateRepository certificateRepository;
 
+    @Autowired
+    private org.insa.pkiissuingca.repository.KeyPairRepository keyPairRepository;
+
     @PostMapping("/cas/root")
     @PreAuthorize("hasAnyRole('CA_ADMIN', 'ROLE_CA_ADMIN')")
     public ResponseEntity<?> initRootCa(@Valid @RequestBody RootCaInitRequest request) {
@@ -165,6 +168,24 @@ public class CertificateController {
         if (cert == null) {
             return ResponseEntity.notFound().build();
         }
+
+        // Ownership check for END_ENTITY users
+        org.springframework.security.core.Authentication auth = SecurityContextHolder.getContext().getAuthentication();
+        boolean isEndEntityOnly = auth.getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals("ROLE_END_ENTITY") || a.getAuthority().equals("END_ENTITY"))
+                && auth.getAuthorities().stream()
+                .noneMatch(a -> a.getAuthority().equals("ROLE_CA_ADMIN") || a.getAuthority().equals("CA_ADMIN")
+                             || a.getAuthority().equals("ROLE_RA_OPERATOR") || a.getAuthority().equals("RA_OPERATOR")
+                             || a.getAuthority().equals("ROLE_AUDITOR") || a.getAuthority().equals("AUDITOR"));
+
+        if (isEndEntityOnly) {
+            String username = getCurrentUsername();
+            if (!isUserOwnerOfCertificate(cert, username)) {
+                return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN)
+                        .body("Access Denied: You do not own this certificate.");
+            }
+        }
+
         return ResponseEntity.ok(cert);
     }
 
@@ -177,6 +198,22 @@ public class CertificateController {
         return ResponseEntity.ok(cert.getPemContent());
     }
 
+
+    private boolean isUserOwnerOfCertificate(CertificateEntity cert, String username) {
+        String certPubKey = normalizePem(cert.getPublicKeyPEM());
+        return keyPairRepository.findAll().stream()
+                .filter(kp -> kp.getUser() != null && kp.getUser().getUsername().equals(username))
+                .anyMatch(kp -> normalizePem(kp.getPublicKeyPEM()).equals(certPubKey));
+    }
+
+    private String normalizePem(String pem) {
+        if (pem == null) return "";
+        return pem.replace("-----BEGIN PUBLIC KEY-----", "")
+                .replace("-----END PUBLIC KEY-----", "")
+                .replace("-----BEGIN CERTIFICATE-----", "")
+                .replace("-----END CERTIFICATE-----", "")
+                .replaceAll("\\s+", "");
+    }
 
     private String getCurrentUsername() {
         if (SecurityContextHolder.getContext().getAuthentication() == null) {

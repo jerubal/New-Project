@@ -33,7 +33,19 @@ public class PrivateKeyEncryptionConverter implements AttributeConverter<String,
                 "[SECURITY] pki.security.db-encryption-key must be set via the PKI_DB_ENCRYPTION_KEY " +
                 "environment variable. Generate one with: openssl rand -base64 32");
         }
-        PrivateKeyEncryptionConverter.secretKeyBase64 = key.trim();
+        String trimmed = key.trim();
+        byte[] decoded;
+        try {
+            decoded = Base64.getDecoder().decode(trimmed);
+        } catch (IllegalArgumentException e) {
+            decoded = trimmed.getBytes(StandardCharsets.UTF_8);
+        }
+        if (decoded.length != 32) {
+            throw new IllegalStateException(
+                "[SECURITY] Decoded PKI_DB_ENCRYPTION_KEY must be exactly 32 bytes (256 bits) long. " +
+                "Actual length: " + decoded.length + " bytes.");
+        }
+        PrivateKeyEncryptionConverter.secretKeyBase64 = trimmed;
     }
 
     private static SecretKey getSecretKey() {
@@ -43,10 +55,7 @@ public class PrivateKeyEncryptionConverter implements AttributeConverter<String,
         } catch (IllegalArgumentException e) {
             keyBytes = secretKeyBase64.getBytes(StandardCharsets.UTF_8);
         }
-        // Ensure key is 32 bytes (256 bits) for AES-256
-        byte[] finalKeyBytes = new byte[32];
-        System.arraycopy(keyBytes, 0, finalKeyBytes, 0, Math.min(keyBytes.length, 32));
-        return new SecretKeySpec(finalKeyBytes, "AES");
+        return new SecretKeySpec(keyBytes, "AES");
     }
 
     @Override

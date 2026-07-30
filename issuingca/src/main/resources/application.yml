@@ -34,6 +34,9 @@ jwt:
 pki:
   security:
     db-encryption-key: ${PKI_DB_ENCRYPTION_KEY}
+    trust-proxy-headers: ${PKI_SECURITY_TRUST_PROXY_HEADERS:false}
+    admin-password: ${PKI_ADMIN_PASSWORD:adminpassword}
+    operator-password: ${PKI_OPERATOR_PASSWORD:operatorpassword}
   cdp:
     url: ${PKI_CDP_URL:http://localhost:8080/api/v1/crl}
   aia:

@@ -20,6 +20,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigInteger;
+import java.security.SecureRandom;
+import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils;
 import java.security.KeyPair;
 import java.security.PrivateKey;
 import java.security.PublicKey;
@@ -30,6 +32,16 @@ import java.util.*;
 
 @Service
 public class CertificateLifecycleService {
+
+    private final SecureRandom secureRandom = new SecureRandom();
+
+    private BigInteger generateSecureSerialNumber() {
+        BigInteger serial;
+        do {
+            serial = new BigInteger(160, secureRandom);
+        } while (serial.compareTo(BigInteger.ZERO) <= 0);
+        return serial;
+    }
 
     @Autowired
     private CertificateRepository certificateRepository;
@@ -126,7 +138,7 @@ public class CertificateLifecycleService {
         long now = System.currentTimeMillis();
         Date notBefore = new Date(now - 1000 * 60 * 5); // 5 mins ago
         Date notAfter = new Date(now + 1000L * 60 * 60 * 24 * profile.getValidityDays());
-        BigInteger serial = BigInteger.valueOf(System.nanoTime());
+        BigInteger serial = generateSecureSerialNumber();
 
         X500Name subject = new X500Name(subjectDN);
         X509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(
@@ -147,7 +159,7 @@ public class CertificateLifecycleService {
 
         // Subject Key Identifier
         certBuilder.addExtension(Extension.subjectKeyIdentifier, false,
-                new SubjectKeyIdentifier(keyPair.getPublic().getEncoded()));
+                new JcaX509ExtensionUtils().createSubjectKeyIdentifier(keyPair.getPublic()));
 
         // Inject CDP and AIA Extensions
         injectCdpAndAiaExtensions(certBuilder, serial.toString());
@@ -279,7 +291,7 @@ public class CertificateLifecycleService {
         long now = System.currentTimeMillis();
         Date notBefore = new Date(now - 1000 * 60 * 5);
         Date notAfter = new Date(now + 1000L * 60 * 60 * 24 * profile.getValidityDays());
-        BigInteger serial = BigInteger.valueOf(System.nanoTime());
+        BigInteger serial = generateSecureSerialNumber();
 
         X500Name subject = new X500Name(subjectDN);
         X500Name issuer = new X500Name(parentCertEntity.getSubjectDN());
@@ -300,12 +312,13 @@ public class CertificateLifecycleService {
         certBuilder.addExtension(Extension.keyUsage, true, new KeyUsage(keyUsageFlags));
 
         // Subject Key Identifier
+        JcaX509ExtensionUtils extUtils = new JcaX509ExtensionUtils();
         certBuilder.addExtension(Extension.subjectKeyIdentifier, false,
-                new SubjectKeyIdentifier(keyPair.getPublic().getEncoded()));
+                extUtils.createSubjectKeyIdentifier(keyPair.getPublic()));
 
         // Authority Key Identifier
         certBuilder.addExtension(Extension.authorityKeyIdentifier, false,
-                new AuthorityKeyIdentifier(parentX509.getPublicKey().getEncoded()));
+                extUtils.createAuthorityKeyIdentifier(parentX509));
 
         // Inject CDP & AIA Extensions
         injectCdpAndAiaExtensions(certBuilder, parentCertEntity.getSerialNumber());
@@ -380,7 +393,7 @@ public class CertificateLifecycleService {
         long now = System.currentTimeMillis();
         Date notBefore = new Date(now - 1000 * 60 * 5);
         Date notAfter = new Date(now + 1000L * 60 * 60 * 24 * profile.getValidityDays());
-        BigInteger serial = BigInteger.valueOf(System.nanoTime());
+        BigInteger serial = generateSecureSerialNumber();
 
         X500Name subject = new X500Name(csrDetails.getSubjectDN());
         X500Name issuer = new X500Name(caCertEntity.getSubjectDN());
@@ -450,12 +463,14 @@ public class CertificateLifecycleService {
         }
 
         // Subject Key Identifier
+        JcaX509ExtensionUtils extUtils = new JcaX509ExtensionUtils();
         certBuilder.addExtension(Extension.subjectKeyIdentifier, false,
-                new SubjectKeyIdentifier(csrDetails.getPublicKey().getEncoded()));
+                extUtils.createSubjectKeyIdentifier(csrDetails.getPublicKey()));
 
         // Authority Key Identifier
+        X509Certificate caX509 = serializationService.parseCertificateFromPem(caCertEntity.getPemContent());
         certBuilder.addExtension(Extension.authorityKeyIdentifier, false,
-                new AuthorityKeyIdentifier(caCertEntity.getPublicKeyPEM().getBytes()));
+                extUtils.createAuthorityKeyIdentifier(caX509));
 
         // Inject CDP & AIA Extensions
         injectCdpAndAiaExtensions(certBuilder, caCertEntity.getSerialNumber());
@@ -539,7 +554,7 @@ public class CertificateLifecycleService {
         long now = System.currentTimeMillis();
         Date notBefore = new Date(now - 1000 * 60 * 5);
         Date notAfter = new Date(now + 1000L * 60 * 60 * 24 * profile.getValidityDays());
-        BigInteger serial = BigInteger.valueOf(System.nanoTime());
+        BigInteger serial = generateSecureSerialNumber();
 
         X500Name subject = new X500Name(oldCert.getSubjectDN());
         X500Name issuer = new X500Name(caCertEntity.getSubjectDN());
